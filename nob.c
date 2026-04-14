@@ -35,6 +35,8 @@
 #define TEST_BIN     "test_main"
 #define AST_OUT      "ast.json"
 #define AST_RAW      "/tmp/podcast_mgr_ast_raw.json"
+#define NOB_AST_OUT  "nob_ast.json"
+#define NOB_AST_RAW  "/tmp/podcast_mgr_nob_ast_raw.json"
 #define SBOM_OUT     "sbom.json"
 #define SARIF_OUT    "podcast_mgr.sarif"
 #define VEX_OUT      "vex.cdx.json"
@@ -65,8 +67,8 @@ static bool cmd_build(void) {
     Nob_Cmd cmd = {0};
     nob_cmd_append(&cmd, "cc");
     nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c2x", "-O2");
-    nob_cmd_append(&cmd, "-I.");
-    nob_cmd_append(&cmd, "-o", TARGET, "main.c");
+    nob_cmd_append(&cmd, "-Isrc");
+    nob_cmd_append(&cmd, "-o", TARGET, "src/main.c");
     nob_cmd_append(&cmd, "-lkcgixml", "-lkhtml", "-lkcgi", "-lz");
     /* nob_cmd_append(&cmd, "-lexpat"); */
     if (!nob_cmd_run(&cmd)) return false;
@@ -84,7 +86,7 @@ static bool cmd_test_unit(void) {
     nob_cmd_append(&cc, "cc");
     nob_cmd_append(&cc, "-std=c11", "-D_GNU_SOURCE",
                         "-Wall", "-Wextra", "-Wno-unused-parameter");
-    nob_cmd_append(&cc, "-I.");
+    nob_cmd_append(&cc, "-Isrc", "-I.");
     nob_cmd_append(&cc, "-o", TEST_BIN, "test_main.c");
     if (!nob_cmd_run(&cc)) return false;
 
@@ -146,7 +148,7 @@ static bool cmd_ast(void) {
                    "-fno-color-diagnostics",
                    "-w", "-ferror-limit=0",
                    "-D_GNU_SOURCE",
-                   "-I.", "main.c");
+                   "-Isrc", "-I.", "src/main.c");
     nob_cmd_run(&dump,
                 .stdout_path = AST_RAW,
                 .stderr_path = "/dev/null");
@@ -169,6 +171,63 @@ static bool cmd_ast(void) {
         return false;
     }
     nob_log(NOB_INFO, "==> ast: written %s", AST_OUT);
+    return true;
+}
+
+/* =========================================================================
+ * nob-ast  — clang AST of nob.c | jq → nob_ast.json
+ * ====================================================================== */
+
+static bool cmd_nob_ast(void) {
+    nob_log(NOB_INFO, "==> nob-ast: generating %s", NOB_AST_OUT);
+    if (!require_tool("clang")) return false;
+    if (!require_tool("jq"))    return false;
+
+    Nob_Cmd dump = {0};
+    nob_cmd_append(&dump,
+                   "clang",
+                   "-Xclang", "-ast-dump=json",
+                   "-fsyntax-only",
+                   "-fno-color-diagnostics",
+                   "-w", "-ferror-limit=0",
+                   "-I.", "nob.c");
+    nob_cmd_run(&dump,
+                .stdout_path = NOB_AST_RAW,
+                .stderr_path = "/dev/null");
+    /* clang exits 1 on missing system headers — expected, AST still emitted */
+    if (!nob_file_exists(NOB_AST_RAW)) {
+        nob_log(NOB_ERROR, "nob-ast: clang produced no output");
+        return false;
+    }
+
+    Nob_Cmd filter = {0};
+    nob_cmd_append(&filter, "jq", "-f", "scripts/nob_ast_filter.jq", NOB_AST_RAW);
+    if (!nob_cmd_run(&filter, .stdout_path = NOB_AST_OUT)) {
+        nob_log(NOB_ERROR, "nob-ast: jq filter failed");
+        return false;
+    }
+    nob_log(NOB_INFO, "==> nob-ast: written %s", NOB_AST_OUT);
+    return true;
+}
+
+/* =========================================================================
+ * cflow  — cflow static call graph → cflow.txt
+ * ====================================================================== */
+
+#define CFLOW_OUT "cflow.txt"
+
+static bool cmd_cflow(void) {
+    nob_log(NOB_INFO, "==> cflow: generating %s", CFLOW_OUT);
+    if (!require_tool("cflow")) return false;
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd,
+                   "cflow", "--omit-arguments", "--no-main",
+                   "src/main.c");
+    if (!nob_cmd_run(&cmd, .stdout_path = CFLOW_OUT)) {
+        nob_log(NOB_ERROR, "cflow: failed");
+        return false;
+    }
+    nob_log(NOB_INFO, "==> cflow: written %s", CFLOW_OUT);
     return true;
 }
 
@@ -219,9 +278,9 @@ static bool cmd_sarif(void) {
         "cppcheck --enable=warning,style --std=c11"
         " --suppress=missingInclude --suppress=missingIncludeSystem"
         " --suppress=unusedFunction --suppress=knownConditionTrueFalse"
-        " --file-filter='*main.c'"
+        " --file-filter='*src/main.c'"
         " --template='{id}|{severity}|{cwe}|{message}|{file}|{line}|{column}'"
-        " main.c 2>&1 | grep -v '^Checking'"
+        " src/main.c 2>&1 | grep -v '^Checking'"
         " | awk -F'|'"
         " 'BEGIN{print \"[\"} {gsub(/\"/,\"\\\\\\\"\",$4);"
         " if(NR>1)printf\",\"; printf\"{\\\"id\\\":\\\"%s\\\","
@@ -330,25 +389,46 @@ static bool cmd_policy(void) {
     nob_log(NOB_INFO, "==> policy: running release gate");
     if (!require_tool("opa")) return false;
 
-    /* Regenerate AST if stale */
-    if (nob_needs_rebuild1(AST_OUT, "main.c") > 0) {
-        nob_log(NOB_INFO, "policy: %s stale — regenerating", AST_OUT);
+    /* Regenerate AST if absent or stale vs src/main.c */
+    if (!nob_file_exists(AST_OUT) || nob_needs_rebuild1(AST_OUT, "src/main.c") > 0) {
+        nob_log(NOB_INFO, "policy: %s absent/stale — regenerating", AST_OUT);
         if (!cmd_ast()) return false;
     }
 
+    /* Generate SBOM if absent */
+    if (!nob_file_exists(SBOM_OUT)) {
+        nob_log(NOB_INFO, "policy: %s absent — generating", SBOM_OUT);
+        if (!cmd_sbom()) return false;
+    }
+
+    /* Generate SARIF if absent */
+    if (!nob_file_exists(SARIF_OUT)) {
+        nob_log(NOB_INFO, "policy: %s absent — generating", SARIF_OUT);
+        if (!cmd_sarif()) return false;
+    }
+
+    /* Regenerate nob-ast if absent or stale vs nob.c */
+    if (!nob_file_exists(NOB_AST_OUT) || nob_needs_rebuild1(NOB_AST_OUT, "nob.c") > 0) {
+        nob_log(NOB_INFO, "policy: %s absent/stale — regenerating", NOB_AST_OUT);
+        if (!cmd_nob_ast()) return false;
+    }
+
     static const PolicyCheck checks[] = {
-        { "sarif", "policy/sarif.rego",
+        { "sarif",   "policy/sarif.rego",
           "data.podcast_mgr.sarif.allow",
-          SARIF_OUT, true  },
-        { "sbom",  "policy/sbom.rego",
+          SARIF_OUT,   true  },
+        { "sbom",    "policy/sbom.rego",
           "data.podcast_mgr.sbom.violations[_]",
-          SBOM_OUT,  false },
-        { "vex",   "policy/vex.rego",
+          SBOM_OUT,    false },
+        { "vex",     "policy/vex.rego",
           "data.podcast_mgr.vex.violations[_]",
-          VEX_OUT,   false },
-        { "ast",   "policy/ast.rego",
+          VEX_OUT,     false },
+        { "ast",     "policy/ast.rego",
           "data.podcast_mgr.ast.violations[_]",
-          AST_OUT,   false },
+          AST_OUT,     false },
+        { "nob-ast", "policy/nob_ast.rego",
+          "data.podcast_mgr.nob_ast.violations[_]",
+          NOB_AST_OUT, false },
     };
 
     bool all_ok = true;
@@ -442,6 +522,8 @@ static void cmd_help(const char *prog) {
         "  test-unit       Run test_main (52 xUnit cases)\n"
         "  test-e2e        Run test_nob.sh (22 build tests)\n"
         "  ast             Regenerate " AST_OUT " via clang + jq\n"
+        "  nob-ast         Regenerate " NOB_AST_OUT " (build driver AST)\n"
+        "  cflow           Generate " CFLOW_OUT " static call graph\n"
         "  sbom            Regenerate " SBOM_OUT " via cdxgen\n"
         "  sarif           Regenerate " SARIF_OUT " (cppcheck + OSV)\n"
         "  vex             Validate " VEX_OUT " via OPA\n"
@@ -455,6 +537,8 @@ static void cmd_help(const char *prog) {
         "  test-unit       cc\n"
         "  test-e2e        sh\n"
         "  ast             clang, jq\n"
+        "  nob-ast         clang, jq\n"
+        "  cflow           cflow\n"
         "  sbom            cdxgen  (npm install -g @cyclonedx/cdxgen)\n"
         "  sarif           cppcheck, cdxgen, osv-scanner, jq\n"
         "  vex/policy      opa     (https://openpolicyagent.org)\n"
@@ -484,6 +568,8 @@ int main(int argc, char **argv) {
     if (strcmp(sub, "test-unit") == 0) return cmd_test_unit() ? 0 : 1;
     if (strcmp(sub, "test-e2e")  == 0) return cmd_test_e2e()  ? 0 : 1;
     if (strcmp(sub, "ast")       == 0) return cmd_ast()       ? 0 : 1;
+    if (strcmp(sub, "nob-ast")   == 0) return cmd_nob_ast()   ? 0 : 1;
+    if (strcmp(sub, "cflow")     == 0) return cmd_cflow()     ? 0 : 1;
     if (strcmp(sub, "sbom")      == 0) return cmd_sbom()      ? 0 : 1;
     if (strcmp(sub, "sarif")     == 0) return cmd_sarif()     ? 0 : 1;
     if (strcmp(sub, "vex")       == 0) return cmd_vex()       ? 0 : 1;

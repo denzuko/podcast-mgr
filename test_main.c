@@ -13,7 +13,7 @@
  *   - FIELDS[] static_assert coverage via runtime checks
  *
  * Build:
- *   cc -std=c11 -Wall -Wextra -I. -o test_main test_main.c && ./test_main
+ *   cc -std=c11 -Wall -Wextra -Isrc -I. -o test_main test_main.c && ./test_main
  *
  * Note: kcgi is not linked here — tests cover pure-C logic only.
  * Route dispatch and rendering require a FastCGI harness; those are

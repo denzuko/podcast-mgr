@@ -112,24 +112,24 @@ Validated on use by `podcast.sh` via `xmlstarlet val -s feeds.xsd`.
 ## File layout
 
 ```
-main.c                  FastCGI worker
+src/main.c              FastCGI worker
 nob.c                   Build driver
-sandbox.h               Platform privilege-drop
+src/sandbox.h           Platform privilege-drop
 podcast.sh              tcsh cron script
 feeds.xsd               XML Schema
 arena.h — tsoding/arena (vendored, ARENA_IMPLEMENTATION required)
-xml.h                   mrvladus/xml.h (vendored)
-sv.h                    tsoding/sv (vendored)
+src/xml.h               mrvladus/xml.h (vendored)
+src/sv.h                tsoding/sv (vendored)
 test_main.c             xUnit test suite
 DIAGRAM.md              Mermaid flowcharts + call graph
-cflow.txt               cflow 1.7 static analysis output
-index.cgi.8             mdoc(7) manpage (section 8)
-podcast-mgr.iso12207.7  ISO 12207 lifecycle record (section 7)
-podcast-mgr.iso10007.7  ISO 10007 CM plan (section 7)
-podcast-mgr.ieee829.7   IEEE 829 test documentation (section 7)
+cflow.txt               ./nob cflow (not tracked in git)
+man/index.cgi.8          mdoc(7) manpage (section 8)
+man/podcast-mgr.iso12207.7  ISO 12207 lifecycle record (section 7)
+man/podcast-mgr.iso10007.7  ISO 10007 CM plan (section 7)
+man/podcast-mgr.ieee829.7   IEEE 829 test documentation (section 7)
 CHANGELOG.md            Keep a Changelog 1.1
-sbom.json               CycloneDX 1.6 SBOM
-podcast_mgr.sarif       SARIF 2.1.0 security scan
+sbom.json               ./nob sbom (not tracked in git)
+podcast_mgr.sarif       ./nob sarif (not tracked in git)
 CODEOWNERS              All paths @denzuko
 .githooks/post-checkout Auto-build on clone
 ```
