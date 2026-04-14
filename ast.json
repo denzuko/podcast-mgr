@@ -405,7 +405,8 @@
         "kxml_open",
         "kxml_poptag",
         "kxml_pushtag",
-        "kxml_putc"
+        "kxml_putc",
+        "kxml_sv"
       ],
       "all_calls": [
         "kxml_attr",
@@ -448,10 +449,12 @@
       "kxml_calls": [
         "kxml_attr",
         "kxml_close",
+        "kxml_input",
         "kxml_open",
         "kxml_poptag",
         "kxml_pushtag",
-        "kxml_putc"
+        "kxml_putc",
+        "kxml_select"
       ],
       "all_calls": [
         "khttp_puts",

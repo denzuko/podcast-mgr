@@ -10,7 +10,7 @@
  *   test        Run test_main (unit) + test_nob.sh (e2e build tests)
  *   test-unit   Run test_main only
  *   test-e2e    Run test_nob.sh only
- *   ast         Regenerate ast.json via clang AST dump
+ *   ast         Regenerate ast.json via clang AST dump | jq filter
  *   sbom        Regenerate sbom.json via cdxgen
  *   sarif       Regenerate podcast_mgr.sarif (cppcheck + OSV CVE)
  *   vex         Validate vex.cdx.json via OPA policy/vex.rego
@@ -126,13 +126,13 @@ static bool cmd_test(void) {
 }
 
 /* =========================================================================
- * ast  — clang -ast-dump=json | scripts/gen_ast.sh → ast.json
+ * ast  — clang -ast-dump=json | jq -f scripts/ast_filter.jq → ast.json
  * ====================================================================== */
 
 static bool cmd_ast(void) {
     nob_log(NOB_INFO, "==> ast: generating %s", AST_OUT);
-    if (!require_tool("clang"))   return false;
-    if (!require_tool("python3")) return false;
+    if (!require_tool("clang")) return false;
+    if (!require_tool("jq"))    return false;
 
     /* Step 1: raw dump.
      * clang exits 1 when headers are missing (e.g. kcgi.h not installed)
@@ -150,19 +150,22 @@ static bool cmd_ast(void) {
     nob_cmd_run(&dump,
                 .stdout_path = AST_RAW,
                 .stderr_path = "/dev/null");
-
+    /* clang exits 1 when system headers are absent (e.g. kcgi.h not
+     * installed on the build host).  It still emits the full AST JSON
+     * for the translation unit.  The ERROR above is expected. */
     if (!nob_file_exists(AST_RAW)) {
         nob_log(NOB_ERROR, "ast: clang produced no output");
         return false;
     }
 
-    /* Step 2: filter → ast.json via ast_filter.py.
-     * The raw file was written above; ast_filter.py reads it and emits
-     * the compact structured summary that policy/ast.rego consumes. */
+    /* Step 2: filter → ast.json via jq.
+     * jq reads the raw 25 MB clang AST, recursively traverses CallExpr
+     * and GotoStmt nodes, and emits the compact structured summary that
+     * policy/ast.rego consumes.  Depends only on libc — no Python runtime. */
     Nob_Cmd filter = {0};
-    nob_cmd_append(&filter, "python3", "scripts/ast_filter.py");
-    if (!nob_cmd_run(&filter)) {
-        nob_log(NOB_ERROR, "ast: gen_ast.sh failed");
+    nob_cmd_append(&filter, "jq", "-f", "scripts/ast_filter.jq", AST_RAW);
+    if (!nob_cmd_run(&filter, .stdout_path = AST_OUT)) {
+        nob_log(NOB_ERROR, "ast: jq filter failed");
         return false;
     }
     nob_log(NOB_INFO, "==> ast: written %s", AST_OUT);
@@ -393,7 +396,7 @@ static void cmd_help(const char *prog) {
         "  test            Run unit + e2e tests\n"
         "  test-unit       Run test_main (52 xUnit cases)\n"
         "  test-e2e        Run test_nob.sh (22 build tests)\n"
-        "  ast             Regenerate " AST_OUT " via clang AST\n"
+        "  ast             Regenerate " AST_OUT " via clang + jq\n"
         "  sbom            Regenerate " SBOM_OUT " via cdxgen\n"
         "  sarif           Regenerate " SARIF_OUT " (cppcheck + OSV)\n"
         "  vex             Validate " VEX_OUT " via OPA\n"
@@ -406,7 +409,7 @@ static void cmd_help(const char *prog) {
         "  build           cc, kcgi headers\n"
         "  test-unit       cc\n"
         "  test-e2e        sh\n"
-        "  ast             clang, python3\n"
+        "  ast             clang, jq\n"
         "  sbom            cdxgen  (npm install -g @cyclonedx/cdxgen)\n"
         "  sarif           cppcheck, python3 (scripts/gen_sarif.py)\n"
         "  vex/policy      opa     (https://openpolicyagent.org)\n"

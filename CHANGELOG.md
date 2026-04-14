@@ -160,3 +160,27 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   node filtering, property extraction); Rego handles the **assertions**
   (architectural invariants over the structured summary). Neither trespasses
   on the other's domain.
+
+### Changed
+
+- `./nob ast` now uses `jq -f scripts/ast_filter.jq` instead of
+  `python3 scripts/ast_filter.py`. Drops Python as a dependency for the
+  ast subcommand entirely. jq depends only on libc (112 KB installed);
+  Python3 requires an 8 MB runtime.
+
+- `scripts/ast_filter.jq` — 20-line jq filter replaces the 194-line
+  Python module. Produces identical output for 15 of 17 functions; is
+  actually more correct for the remaining two (`render_form`,
+  `render_list`) where the Python version had a subtle `break` that
+  caused it to miss calls through `kxml_select` and `kxml_sv`.
+
+- `scripts/gen_ast.sh` simplified to call `jq -f scripts/ast_filter.jq`
+  directly. No Python heredoc.
+
+- `scripts/ast_filter.py` retained for reference/documentation but is
+  no longer called by any build step.
+
+  Correct dependency split:
+  - **Transformation** (tree traversal, node extraction): jq
+  - **Assertion** (architectural invariants): Rego
+  - **Neither** reads the 25 MB raw AST: Rego loads the 13 KB summary
