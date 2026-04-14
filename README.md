@@ -2,6 +2,13 @@
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-denzuko-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/denzuko)
 [![Twitch](https://img.shields.io/badge/Twitch-zekodun-9146FF?style=flat&logo=twitch&logoColor=white)](https://twitch.tv/zekodun)
+[![License](https://img.shields.io/badge/License-BSD%202--Clause-blue?style=flat)](LICENSE.txt)
+[![Release](https://img.shields.io/github/v/release/denzuko/podcast-mgr?style=flat&color=green)](https://github.com/denzuko/podcast-mgr/releases/latest)
+[![Issues](https://img.shields.io/github/issues/denzuko/podcast-mgr?style=flat)](https://github.com/denzuko/podcast-mgr/issues)
+[![SBOM](https://img.shields.io/badge/SBOM-CycloneDX%201.6-blueviolet?style=flat)](sbom.json)
+[![SARIF](https://img.shields.io/badge/SARIF-2.1.0%20clean-brightgreen?style=flat)](podcast_mgr.sarif)
+[![C](https://img.shields.io/badge/language-C11%2FC2x-informational?style=flat&logo=c)](main.c)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20FreeBSD%20%7C%20OpenBSD%20%7C%20NetBSD-lightgrey?style=flat)](SECURITY.md)
 
 A single-user FastCGI SPA for managing a podcast subscription list
 stored as `feeds.xml`. Built on the BCHS stack (kcgi, khtml, kcgixml)
@@ -52,7 +59,7 @@ Interactive repository diagram: https://gitdiagram.com/denzuko/podcast-mgr
 - [mrvladus/xml.h](https://github.com/mrvladus/xml.h) — header-only XML parser
 - [tsoding/sv](https://github.com/tsoding/sv) — string view library
 - [tsoding/nob.h](https://github.com/tsoding/nob) — build system
-- `arena.h` — region allocator (bring your own)
+- `arena.h` — [tsoding/arena](https://github.com/tsoding/arena) region allocator
 
 ## Build
 
@@ -91,6 +98,16 @@ See `index.cgi.8` for full documentation.
 ```
 0 0 * * * /path/to/podcast.sh --playlist
 ```
+
+## Community
+
+- [Contributing](CONTRIBUTING.md) — how to submit fixes and PRs
+- [Code of Conduct](CODE_OF_CONDUCT.md) — Contributor Covenant 2.1
+- [Security Policy](SECURITY.md) — how to report vulnerabilities
+- [Support](SUPPORT.md) — how to get help
+- [Bug reports](https://github.com/denzuko/podcast-mgr/issues/new?template=bug_report.md)
+- [Feature requests](https://github.com/denzuko/podcast-mgr/issues/new?template=feature_request.md)
+- **Email:** denzuko@dapla.net
 
 ## License
 

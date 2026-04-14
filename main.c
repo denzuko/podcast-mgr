@@ -32,6 +32,7 @@
 #include "xml.h"
 #define SV_IMPLEMENTATION
 #include "sv.h"
+#define ARENA_IMPLEMENTATION
 #include "arena.h"
 #include "sandbox.h"
 
@@ -776,7 +777,7 @@ static void render_shell(struct kreq *r) {
 int main(void) {
     int rc = 1;
     struct kfcgi *fcgi = NULL;
-    Arena arena = arena_init(4 * 1024 * 1024);
+    Arena arena = {0};
 
     for (int i = 0; i < PAGE__MAX; ++i)
         pages[i] = ROUTES[i].path;
@@ -903,6 +904,6 @@ int main(void) {
 
 done:
     if (NULL != fcgi) khttp_fcgi_free(fcgi);
-    arena_destroy(&arena);
+    arena_free(&arena);
     return rc;
 }

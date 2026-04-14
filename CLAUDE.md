@@ -50,7 +50,7 @@ All must pass before committing.
 | All htmx partial responses | kxml |
 | XML parse (startup only) | mrvladus/xml.h |
 | String views | tsoding/sv |
-| Memory | arena.h (region allocator, 4 MB root arena) |
+| Memory | arena.h (tsoding/arena, zero-value init) |
 | Sandbox | sandbox.h (seccomp / Capsicum / pledge) |
 | Build | tsoding/nob |
 
@@ -117,7 +117,7 @@ nob.c                   Build driver
 sandbox.h               Platform privilege-drop
 podcast.sh              tcsh cron script
 feeds.xsd               XML Schema
-arena.h                 Minimal region allocator
+arena.h — tsoding/arena (vendored, ARENA_IMPLEMENTATION required)
 xml.h                   mrvladus/xml.h (vendored)
 sv.h                    tsoding/sv (vendored)
 test_main.c             xUnit test suite

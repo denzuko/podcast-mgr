@@ -34,6 +34,7 @@
 #include "xml.h"
 #define SV_IMPLEMENTATION
 #include "sv.h"
+#define ARENA_IMPLEMENTATION
 #include "arena.h"
 
 /* =========================================================================
