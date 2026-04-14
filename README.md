@@ -1,6 +1,7 @@
 # podcast-mgr
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-denzuko-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/denzuko)
+[![Twitch](https://img.shields.io/badge/Twitch-zekodun-9146FF?style=flat&logo=twitch&logoColor=white)](https://twitch.tv/zekodun)
 
 A single-user FastCGI SPA for managing a podcast subscription list
 stored as `feeds.xml`. Built on the BCHS stack (kcgi, khtml, kcgixml)

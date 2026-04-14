@@ -1,0 +1,156 @@
+# CLAUDE.md
+
+This file provides context for AI coding assistants working in this repository.
+
+## Project overview
+
+`podcast-mgr` is a two-component system:
+
+- **`index.cgi`** — FastCGI SPA (C, BCHS stack) that manages `feeds.xml`
+  via a browser UI. Add, edit, delete podcast subscriptions.
+- **`podcast.sh`** — tcsh cron script that reads `feeds.xml` and downloads
+  episodes. Runs independently at midnight; not invoked by the CGI.
+
+The components are intentionally decoupled. The CGI owns the write path;
+the cron job owns the read/download path.
+
+## Build
+
+```sh
+cc -o nob nob.c && ./nob     # produces index.cgi
+```
+
+Post-clone hook does this automatically if activated:
+```sh
+git config core.hooksPath .githooks
+```
+
+## Test
+
+```sh
+cc -std=c11 -D_GNU_SOURCE -I. -o test_main test_main.c && ./test_main
+```
+
+52 xUnit test cases, no external framework. All must pass before committing.
+
+## Stack
+
+| Layer | Library |
+|-------|---------|
+| FastCGI framing + field parsing | kcgi |
+| SPA root document | khtml (one function: `render_shell`) |
+| All htmx partial responses | kxml |
+| XML parse (startup only) | mrvladus/xml.h |
+| String views | tsoding/sv |
+| Memory | arena.h (region allocator, 4 MB root arena) |
+| Sandbox | sandbox.h (seccomp / Capsicum / pledge) |
+| Build | tsoding/nob |
+
+## Key design rules
+
+**Data-driven, not scattered.** `FIELDS[FIELD_COUNT]` is the single source
+of truth for XML attribute names, form labels, input kinds, length caps,
+and enum option lists. Renderers, validators, and the serialiser all iterate
+this table. Adding a field = one row in `FIELDS[]` + one entry in `PodcastAttr`.
+
+**khtml only in `render_shell`.** Every other output function uses kxml.
+`<input>` is the one void-element exception — kxml cannot self-close it,
+so `kxml_input` drops to `khttp_puts` for that tag only.
+
+**Arena owns all strings for the worker lifetime.** `kp->val` from kcgi is
+freed by `khttp_free` at the end of each request. Any string that needs to
+outlive the request (POST field values stored in `PodcastArray`) must be
+`arena_alloc` + `memcpy` before `khttp_free` is called.
+
+**Atomic writes only.** `write_feeds_xml` writes to `feeds.xml.tmp` and
+renames. If anything fails, the original is untouched. The in-memory `db`
+is snapshot/restored on write failure so it stays consistent with disk.
+
+**`xml_node_serialize` is broken.** mrvladus/xml.h emits `</tag attr="v">`
+for self-closing nodes. Use `XMLString` + `xml_string_append` directly.
+
+**xml.h does not entity-decode attributes.** `xml_node_attr` returns the
+raw escaped form (`&amp;` not `&`). This is documented in `test_main.c`
+suite 6 and in the BUGS section of `index.cgi.8`.
+
+## Routes
+
+```
+GET  /podcast/index.cgi/index   SPA shell (khtml)
+GET  /podcast/index.cgi/list    card list partial (kxml)
+GET  /podcast/index.cgi/add     blank form partial (kxml)
+GET  /podcast/index.cgi/edit    pre-filled form (?id=N) (kxml)
+POST /podcast/index.cgi/save    upsert → write → list partial
+POST /podcast/index.cgi/delete  soft-delete → write → list partial (?id=N)
+```
+
+Method enforcement is table-driven via `ROUTES[PAGE__MAX]`.
+
+## feeds.xml schema
+
+```xml
+<subscriptions>
+  <podcast title="NAME"
+           url="https://..."
+           scope="all|latest|none"
+           day="Daily|Mon|Tue|Wed|Thu|Fri|Sat|Sun"
+           pull_time="00..23" />
+</subscriptions>
+```
+
+Validated on write by `validate_fields` (presence, length, enum allowlist).
+Validated on use by `podcast.sh` via `xmlstarlet val -s feeds.xsd`.
+
+## File layout
+
+```
+main.c                  FastCGI worker
+nob.c                   Build driver
+sandbox.h               Platform privilege-drop
+podcast.sh              tcsh cron script
+feeds.xsd               XML Schema
+arena.h                 Minimal region allocator
+xml.h                   mrvladus/xml.h (vendored)
+sv.h                    tsoding/sv (vendored)
+test_main.c             xUnit test suite
+DIAGRAM.md              Mermaid flowcharts + call graph
+cflow.txt               cflow 1.7 static analysis output
+index.cgi.8             mdoc(7) manpage (section 8)
+podcast-mgr.iso12207.7  ISO 12207 lifecycle record (section 7)
+podcast-mgr.iso10007.7  ISO 10007 CM plan (section 7)
+podcast-mgr.ieee829.7   IEEE 829 test documentation (section 7)
+CHANGELOG.md            Keep a Changelog 1.1
+sbom.json               CycloneDX 1.6 SBOM
+podcast_mgr.sarif       SARIF 2.1.0 security scan
+CODEOWNERS              All paths @denzuko
+.githooks/post-checkout Auto-build on clone
+```
+
+## Common tasks
+
+**Add a subscription field**
+1. Add a `const char *const NEWFIELD_OPTS[]` array if constrained.
+2. Add a row to `FIELDS[FIELD_COUNT]` and increment `FIELD_COUNT`.
+3. Add the corresponding entry to `PodcastAttr` enum.
+4. Update `feeds.xsd` to include the new attribute.
+5. Run `test_main` — the `FIELDS table integrity` suite will catch mismatches.
+
+**Run static analysis**
+```sh
+cppcheck --enable=all --std=c11 \
+  --suppress=missingInclude --suppress=missingIncludeSystem main.c
+```
+Expected: 0 findings.
+
+**Regenerate SBOM + SARIF before release**
+```sh
+cdxgen -t c . -o sbom.json
+# then run cppcheck + OSV scan and rebuild podcast_mgr.sarif
+```
+
+## What this project is NOT
+
+- Not a podcast player or download manager (that is `podcast.sh` + cron).
+- Not multi-user. No authentication, no sessions, no CSRF tokens.
+- Not internet-facing. Local network only.
+- Not a general-purpose feed reader. It manages one XML file.
