@@ -156,10 +156,11 @@ static bool cmd_ast(void) {
         return false;
     }
 
-    /* Step 2: filter → ast.json.
-     * Pass --filter so gen_ast.sh skips the clang step (already done). */
+    /* Step 2: filter → ast.json via ast_filter.py.
+     * The raw file was written above; ast_filter.py reads it and emits
+     * the compact structured summary that policy/ast.rego consumes. */
     Nob_Cmd filter = {0};
-    nob_cmd_append(&filter, "sh", "scripts/gen_ast.sh", "--filter");
+    nob_cmd_append(&filter, "python3", "scripts/ast_filter.py");
     if (!nob_cmd_run(&filter)) {
         nob_log(NOB_ERROR, "ast: gen_ast.sh failed");
         return false;

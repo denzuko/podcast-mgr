@@ -145,3 +145,18 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `--check` exits 1 if `ast.json` is stale (useful in CI).
 
 - `test_nob.sh` TARGET grep updated to tolerate whitespace after `#define`.
+
+### Refactored
+
+- `scripts/ast_filter.py` — extracted Python AST transformation from
+  the heredoc in `gen_ast.sh` into a proper standalone module (194 lines).
+  Clean argparse CLI: positional `raw` and `out` paths with sensible defaults,
+  `--check` stale-detection flag. Type annotations. Single responsibility:
+  raw 25 MB clang JSON → compact 13 KB structured summary for Rego.
+  `gen_ast.sh` is now a 20-line thin shell wrapper over it.
+  `nob.c ast` now calls `python3 scripts/ast_filter.py` directly.
+
+  Correct architecture: Python handles the **transformation** (tree traversal,
+  node filtering, property extraction); Rego handles the **assertions**
+  (architectural invariants over the structured summary). Neither trespasses
+  on the other's domain.
