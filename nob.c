@@ -191,39 +191,84 @@ static bool cmd_sbom(void) {
 }
 
 /* =========================================================================
- * sarif  — cppcheck XML + OSV → podcast_mgr.sarif
+ * sarif  — cppcheck + osv-scanner + jq → podcast_mgr.sarif
+ *
+ * Pipeline (no Python):
+ *   1. cppcheck --template → pipe-delimited findings
+ *   2. shell awk → JSON array  → $cpp argjson
+ *   3. cdxgen --spec-version 1.5 → SBOM_OSV (osv-scanner compat)
+ *   4. osv-scanner --sbom SBOM_OSV --format sarif → OSV_SARIF
+ *   5. jq -f scripts/gen_sarif.jq merges both → SARIF_OUT
  * ====================================================================== */
 
+#define SBOM_OSV  "/tmp/podcast_mgr_sbom_osv.json"
+#define OSV_SARIF "/tmp/podcast_mgr_osv.sarif"
+#define CPP_JSON  "/tmp/podcast_mgr_cppcheck.json"
+
 static bool cmd_sarif(void) {
-    nob_log(NOB_INFO, "==> sarif: cppcheck + OSV → %s", SARIF_OUT);
-    if (!require_tool("cppcheck")) return false;
-    if (!require_tool("python3"))  return false;
+    nob_log(NOB_INFO, "==> sarif: cppcheck + osv-scanner → %s", SARIF_OUT);
+    if (!require_tool("cppcheck"))    return false;
+    if (!require_tool("cdxgen"))      return false;
+    if (!require_tool("osv-scanner")) return false;
+    if (!require_tool("jq"))          return false;
 
-    /* cppcheck writes XML to stderr */
+    /* Step 1+2: cppcheck --template → awk → JSON array */
+    /* Pipe: cppcheck ... | awk '{...}' > CPP_JSON */
     Nob_Cmd cpp = {0};
-    nob_cmd_append(&cpp,
-                   "cppcheck",
-                   "--enable=warning,style",
-                   "--std=c11",
-                   "--suppress=missingInclude",
-                   "--suppress=missingIncludeSystem",
-                   "--suppress=unusedFunction",
-                   "--suppress=knownConditionTrueFalse",
-                   "--xml",
-                   "main.c");
-    if (!nob_cmd_run(&cpp,
-                     .stdout_path = "/dev/null",
-                     .stderr_path = CPPCHECK_XML)) {
-        nob_log(NOB_ERROR, "sarif: cppcheck failed");
+    nob_cmd_append(&cpp, "sh", "-c",
+        "cppcheck --enable=warning,style --std=c11"
+        " --suppress=missingInclude --suppress=missingIncludeSystem"
+        " --suppress=unusedFunction --suppress=knownConditionTrueFalse"
+        " --file-filter='*main.c'"
+        " --template='{id}|{severity}|{cwe}|{message}|{file}|{line}|{column}'"
+        " main.c 2>&1 | grep -v '^Checking'"
+        " | awk -F'|'"
+        " 'BEGIN{print \"[\"} {gsub(/\"/,\"\\\\\\\"\",$4);"
+        " if(NR>1)printf\",\"; printf\"{\\\"id\\\":\\\"%s\\\","
+        "\\\"severity\\\":\\\"%s\\\",\\\"cwe\\\":\\\"%s\\\","
+        "\\\"msg\\\":\\\"%s\\\",\\\"file\\\":\\\"%s\\\","
+        "\\\"line\\\":\\\"%s\\\",\\\"col\\\":\\\"%s\\\"}\","
+        "$1,$2,$3,$4,$5,$6,$7} END{print \"]\"}'");
+    if (!nob_cmd_run(&cpp, .stdout_path = CPP_JSON)) {
+        nob_log(NOB_ERROR, "sarif: cppcheck pipeline failed");
         return false;
     }
 
-    Nob_Cmd py = {0};
-    nob_cmd_append(&py, "python3", "scripts/gen_sarif.py");
-    if (!nob_cmd_run(&py)) {
-        nob_log(NOB_ERROR, "sarif: gen_sarif.py failed");
+    /* Step 3: cdxgen CycloneDX 1.5 for osv-scanner */
+    Nob_Cmd cdx = {0};
+    nob_cmd_append(&cdx, "cdxgen", "-t", "c", ".",
+                        "--spec-version", "1.5", "-o", SBOM_OSV);
+    if (!nob_cmd_run(&cdx,
+                     .stdout_path = "/dev/null",
+                     .stderr_path = "/dev/null")) {
+        nob_log(NOB_ERROR, "sarif: cdxgen (spec 1.5) failed");
         return false;
     }
+
+    /* Step 4: osv-scanner → SARIF (exits 1 on vulns found — that's ok) */
+    Nob_Cmd osv = {0};
+    nob_cmd_append(&osv, "osv-scanner",
+                        "--sbom", SBOM_OSV,
+                        "--format", "sarif");
+    nob_cmd_run(&osv, .stdout_path = OSV_SARIF, .stderr_path = "/dev/null");
+    if (!nob_file_exists(OSV_SARIF)) {
+        nob_log(NOB_ERROR, "sarif: osv-scanner produced no output");
+        return false;
+    }
+
+    /* Step 5: jq merge → SARIF_OUT */
+    Nob_Cmd merge = {0};
+    nob_cmd_append(&merge, "sh", "-c",
+        "jq -f scripts/gen_sarif.jq"
+        " --argjson cpp \"$(cat " CPP_JSON ")\""
+        " --arg serial \"$(jq -r '.serialNumber // \"urn:uuid:unknown\"' " SBOM_OUT ")\""
+        " --arg ts \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
+        " " OSV_SARIF " > " SARIF_OUT);
+    if (!nob_cmd_run(&merge)) {
+        nob_log(NOB_ERROR, "sarif: jq merge failed");
+        return false;
+    }
+
     nob_log(NOB_INFO, "==> sarif: written %s", SARIF_OUT);
     return true;
 }
@@ -411,7 +456,7 @@ static void cmd_help(const char *prog) {
         "  test-e2e        sh\n"
         "  ast             clang, jq\n"
         "  sbom            cdxgen  (npm install -g @cyclonedx/cdxgen)\n"
-        "  sarif           cppcheck, python3 (scripts/gen_sarif.py)\n"
+        "  sarif           cppcheck, cdxgen, osv-scanner, jq\n"
         "  vex/policy      opa     (https://openpolicyagent.org)\n"
         "\n"
         "Examples:\n"

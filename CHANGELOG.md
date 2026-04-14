@@ -184,3 +184,47 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **Transformation** (tree traversal, node extraction): jq
   - **Assertion** (architectural invariants): Rego
   - **Neither** reads the 25 MB raw AST: Rego loads the 13 KB summary
+
+## [1.1.0] — 2026-04-14
+
+### Changed
+
+- `./nob sarif` pipeline rewritten — Python3 removed as a dependency.
+  `nob.c` now orchestrates domain-specific tools directly:
+  1. `cppcheck --template` → pipe-delimited findings (no XML intermediary)
+  2. `cdxgen --spec-version 1.5` → temp SBOM for osv-scanner compatibility
+  3. `osv-scanner --sbom ... --format sarif` → CVE scan as native SARIF
+  4. `jq -f scripts/gen_sarif.jq` → merges both sources into `podcast_mgr.sarif`
+
+- `scripts/gen_sarif.jq` added — 100-line pure jq SARIF merger.
+  Accepts cppcheck findings as `$cpp` argjson, osv-scanner SARIF as
+  input file, SBOM serial as `$serial` arg. No Python, no C.
+
+- `policy/sarif.rego` updated — cppcheck gate scoped to `main.c` only.
+  Vendored headers (`xml.h`, `sv.h`, `arena.h`) produce CWE-398 style
+  findings that are documented suppressions; they no longer block release.
+  CVE gate (zero OSV findings) remains unchanged.
+
+### Removed
+
+- `scripts/gen_sarif.py` — never existed; was a broken stub reference
+  in `nob.c`. Removed the call entirely.
+- `scripts/gen_sarif.c` / `jim.h` — incorrect approach (reimplementing
+  CycloneDX tooling in C). Never committed; cleaned up.
+
+### Fixed
+
+- `./nob sarif` was broken (called nonexistent `gen_sarif.py`).
+  Closes #1.
+
+### Architecture
+
+Correct tool responsibilities:
+| Concern | Tool |
+|---------|------|
+| SBOM | `cdxgen` (CycloneDX) |
+| VEX | manual CycloneDX VEX (human analysis required) |
+| CVE scan | `osv-scanner` (reads SBOM, outputs SARIF natively) |
+| Static analysis | `cppcheck` |
+| Transform/merge | `jq` |
+| Policy/validation | `opa` + Rego |

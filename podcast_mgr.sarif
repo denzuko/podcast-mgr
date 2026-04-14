@@ -7,253 +7,263 @@
         "driver": {
           "name": "podcast-mgr security scan",
           "version": "1.0.0",
-          "informationUri": "https://sarifweb.azurewebsites.net/",
-          "rules": [],
-          "properties": {
-            "cdxgen": "CycloneDX 1.6 SBOM",
-            "sbomSerial": "urn:uuid:8ef56de1-6cc2-4262-990e-5e406dbb6976",
-            "cppcheck": "2.13.0",
-            "osvScanner": "api.osv.dev/v1",
-            "suppressions": [
-              "unusedFunction \u2014 vendored headers (arena.h, sv.h, sandbox.h)",
-              "knownConditionTrueFalse \u2014 sandbox_lockdown_rw false positive on SANDBOX_SECCOMP_DISABLED arch stub",
-              "constVariablePointer/constParameterPointer \u2014 vendored headers (arena.h, xml.h)"
-            ]
-          }
+          "rules": [
+            {
+              "id": "cppcheck/constParameterPointer",
+              "shortDescription": {
+                "text": "cppcheck/constParameterPointer"
+              },
+              "helpUri": "https://cppcheck.sourceforge.io/",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "cppcheck/constVariablePointer",
+              "shortDescription": {
+                "text": "cppcheck/constVariablePointer"
+              },
+              "helpUri": "https://cppcheck.sourceforge.io/",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "cppcheck/toomanyconfigs",
+              "shortDescription": {
+                "text": "cppcheck/toomanyconfigs"
+              },
+              "helpUri": "https://cppcheck.sourceforge.io/",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "cppcheck/uselessAssignmentPtrArg",
+              "shortDescription": {
+                "text": "cppcheck/uselessAssignmentPtrArg"
+              },
+              "helpUri": "https://cppcheck.sourceforge.io/",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "cppcheck/variableScope",
+              "shortDescription": {
+                "text": "cppcheck/variableScope"
+              },
+              "helpUri": "https://cppcheck.sourceforge.io/",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            }
+          ]
         },
         "extensions": [
-          {
-            "name": "cdxgen",
-            "version": "12.1.5",
-            "informationUri": "https://cyclonedx.github.io/cdxgen/"
-          },
           {
             "name": "cppcheck",
             "version": "2.13.0",
             "informationUri": "https://cppcheck.sourceforge.io/"
           },
           {
-            "name": "OSV",
-            "version": "v1",
-            "informationUri": "https://osv.dev/"
+            "name": "osv-scanner",
+            "version": "1.9.2",
+            "informationUri": "https://github.com/google/osv-scanner"
+          },
+          {
+            "name": "cdxgen",
+            "version": "12.1.5",
+            "informationUri": "https://cyclonedx.github.io/cdxgen/"
           }
         ]
       },
       "invocations": [
         {
           "executionSuccessful": true,
-          "endTimeUtc": "2026-04-14T04:13:33Z",
-          "toolExecutionNotifications": []
+          "endTimeUtc": "2026-04-14T16:08:15Z"
         }
       ],
-      "artifacts": [
+      "results": [
         {
-          "location": {
-            "uri": "assert.h"
+          "ruleId": "cppcheck/uselessAssignmentPtrArg",
+          "level": "warning",
+          "message": {
+            "text": "Assignment of function parameter has no effect outside the function. Did you forget dereferencing it? [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "xml.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 225,
+                  "startColumn": 3
+                }
+              }
+            }
           ]
         },
         {
-          "location": {
-            "uri": "ctype.h"
+          "ruleId": "cppcheck/uselessAssignmentPtrArg",
+          "level": "warning",
+          "message": {
+            "text": "Assignment of function parameter has no effect outside the function. Did you forget dereferencing it? [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "xml.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 551,
+                  "startColumn": 3
+                }
+              }
+            }
           ]
         },
         {
-          "location": {
-            "uri": "errno.h"
+          "ruleId": "cppcheck/variableScope",
+          "level": "note",
+          "message": {
+            "text": "The scope of the variable 'x' can be reduced. [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "sv.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 264,
+                  "startColumn": 10
+                }
+              }
+            }
           ]
         },
         {
-          "location": {
-            "uri": "kcgi.h"
+          "ruleId": "cppcheck/variableScope",
+          "level": "note",
+          "message": {
+            "text": "The scope of the variable 'y' can be reduced. [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "sv.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 264,
+                  "startColumn": 13
+                }
+              }
+            }
           ]
         },
         {
-          "location": {
-            "uri": "kcgixml.h"
+          "ruleId": "cppcheck/constVariablePointer",
+          "level": "note",
+          "message": {
+            "text": "Variable 'segment' can be declared as pointer to const [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "xml.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 291,
+                  "startColumn": 9
+                }
+              }
+            }
           ]
         },
         {
-          "location": {
-            "uri": "khtml.h"
+          "ruleId": "cppcheck/constVariablePointer",
+          "level": "note",
+          "message": {
+            "text": "Variable 'attr' can be declared as pointer to const [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "xml.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 506,
+                  "startColumn": 14
+                }
+              }
+            }
           ]
         },
         {
-          "location": {
-            "uri": "linux/audit.h"
+          "ruleId": "cppcheck/constVariablePointer",
+          "level": "note",
+          "message": {
+            "text": "Variable 'oldptr_char' can be declared as pointer to const [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "arena.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 328,
+                  "startColumn": 11
+                }
+              }
+            }
           ]
         },
         {
-          "location": {
-            "uri": "linux/filter.h"
+          "ruleId": "cppcheck/constParameterPointer",
+          "level": "note",
+          "message": {
+            "text": "Parameter 'data' can be declared as pointer to const [CWE-398]"
           },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "linux/seccomp.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "main.c"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "nob.c"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sandbox.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "stdarg.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "stddef.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sv.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sys/capsicum.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sys/mman.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sys/pledge.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sys/prctl.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sys/stat.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sys/syscall.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "sys/types.h"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "test_main.c"
-          },
-          "roles": [
-            "analysisTarget"
-          ]
-        },
-        {
-          "location": {
-            "uri": "xml.h"
-          },
-          "roles": [
-            "analysisTarget"
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "arena.h",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 359,
+                  "startColumn": 36
+                }
+              }
+            }
           ]
         }
       ],
-      "results": [],
       "columnKind": "utf16CodeUnits",
       "properties": {
         "sbom": {
-          "format": "CycloneDX",
-          "specVersion": "1.6",
-          "serialNumber": "urn:uuid:8ef56de1-6cc2-4262-990e-5e406dbb6976",
-          "componentCount": 32
+          "serialNumber": "urn:uuid:8ef56de1-6cc2-4262-990e-5e406dbb6976"
         },
         "scanSummary": {
-          "cppcheckFindings": 0,
+          "cppcheckFindings": 8,
           "cveFindings": 0,
-          "totalFindings": 0,
-          "status": "PASS"
+          "totalFindings": 8,
+          "status": "FAIL"
         }
       }
     }
