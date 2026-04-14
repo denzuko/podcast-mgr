@@ -1,0 +1,16 @@
+Git hooks for podcast-mgr
+=========================
+
+post-checkout
+    Fires on initial clone.  Compiles nob.c then runs ./nob to produce
+    index.cgi.  Requires a C compiler on PATH.
+
+Activation
+----------
+After cloning, run once:
+
+    git config core.hooksPath .githooks
+
+To activate globally for all repos:
+
+    git config --global core.hooksPath $(pwd)/.githooks

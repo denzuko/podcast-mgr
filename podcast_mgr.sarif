@@ -1,0 +1,160 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "podcast-mgr security scan",
+          "version": "1.0.0",
+          "informationUri": "https://sarifweb.azurewebsites.net/",
+          "rules": [
+            {
+              "id": "cppcheck/constVariablePointer",
+              "name": "ConstVariablePointer",
+              "shortDescription": {
+                "text": "Variable can be declared as pointer to const"
+              },
+              "fullDescription": {
+                "text": "The pointer variable does not modify the pointed-to value and can be declared const. CWE-398: Indicator of Poor Code Quality."
+              },
+              "helpUri": "https://cppcheck.sourceforge.io/",
+              "properties": {
+                "tags": [
+                  "correctness",
+                  "style"
+                ],
+                "precision": "high",
+                "problem.severity": "recommendation",
+                "security-severity": "2.0"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            }
+          ],
+          "properties": {
+            "cdxgen": "CycloneDX 1.6 SBOM",
+            "sbomSerial": "urn:uuid:46f38308-b3f7-4db3-aa27-83256129142b",
+            "cppcheck": "2.13.0",
+            "osvScanner": "api.osv.dev/v1"
+          }
+        },
+        "extensions": [
+          {
+            "name": "cdxgen",
+            "version": "12.1.5",
+            "informationUri": "https://cyclonedx.github.io/cdxgen/"
+          },
+          {
+            "name": "cppcheck",
+            "version": "2.13.0",
+            "informationUri": "https://cppcheck.sourceforge.io/"
+          },
+          {
+            "name": "OSV",
+            "version": "v1",
+            "informationUri": "https://osv.dev/"
+          }
+        ]
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "endTimeUtc": "2026-04-14T01:11:03Z",
+          "toolExecutionNotifications": []
+        }
+      ],
+      "artifacts": [
+        {
+          "location": {
+            "uri": "assert.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "kcgi.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "kcgixml.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "khtml.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "main.c"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sandbox.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sv.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sys/stat.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "xml.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        }
+      ],
+      "results": [],
+      "columnKind": "utf16CodeUnits",
+      "properties": {
+        "sbom": {
+          "format": "CycloneDX",
+          "specVersion": "1.6",
+          "serialNumber": "urn:uuid:46f38308-b3f7-4db3-aa27-83256129142b",
+          "componentCount": 15
+        },
+        "scanSummary": {
+          "cppcheckFindings": 0,
+          "cveFindings": 0,
+          "totalFindings": 0,
+          "status": "PASS"
+        }
+      }
+    }
+  ]
+}

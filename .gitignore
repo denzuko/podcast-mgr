@@ -1,0 +1,12 @@
+# Build output
+nob
+index.cgi
+*.o
+
+# Editor
+*.swp
+*~
+.DS_Store
+
+# Runtime artefacts
+feeds.xml.tmp

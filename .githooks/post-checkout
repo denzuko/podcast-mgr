@@ -1,0 +1,31 @@
+#!/bin/sh
+# post-checkout — fires after `git clone` (initial checkout) and after
+# `git checkout`. We only want to build on the initial clone, indicated
+# by the previous HEAD being the null SHA.
+#
+# Activate with:  git config core.hooksPath .githooks
+# Or system-wide: git config --global core.hooksPath /path/to/repo/.githooks
+
+PREV_HEAD="$1"
+NULL_SHA="0000000000000000000000000000000000000000"
+
+# Only run on initial clone (prev HEAD is null)
+if [ "$PREV_HEAD" != "$NULL_SHA" ]; then
+    exit 0
+fi
+
+echo "[post-checkout] Initial clone detected — building index.cgi via nob..."
+
+# Compile the build driver
+if ! cc -o nob nob.c; then
+    echo "[post-checkout] ERROR: failed to compile nob.c" >&2
+    exit 1
+fi
+
+# Run the build
+if ! ./nob; then
+    echo "[post-checkout] ERROR: nob build failed" >&2
+    exit 1
+fi
+
+echo "[post-checkout] Build complete: index.cgi"

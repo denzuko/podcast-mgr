@@ -1,0 +1,287 @@
+.\" index.cgi.8 - podcast feed manager FastCGI worker
+.\" Dwight Spencer <denzuko@dapla.net>
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd April 14, 2026
+.Dt INDEX.CGI 8
+.Os
+.Sh NAME
+.Nm index.cgi
+.Nd podcast subscription feed manager
+.Sh SYNOPSIS
+.Nm
+.Sh DESCRIPTION
+.Nm
+is a FastCGI worker that provides a single-page web application for
+managing a podcast subscription list stored as
+.Pa feeds.xml .
+It presents a browser UI through which the user can add, edit, and
+remove subscriptions.
+The file is read once at worker startup and written atomically on each
+mutation.
+.Pp
+The worker is intended for single-user, local-network deployment.
+It does not perform any podcast downloading or synchronisation;
+that is the responsibility of a separate cron job consuming
+.Pa feeds.xml .
+.Pp
+The UI is driven by
+.Xr htmx 1
+partials.
+The root document is rendered once via
+.Xr kcgi 3
+.Fn khtml
+and all subsequent partial responses are rendered via
+.Fn kxml .
+.Sh ROUTES
+All routes are served under
+.Pa /podcast/index.cgi/ .
+.Bl -tag -width "POST /delete"
+.It Sy GET /index
+Returns the full SPA shell page.
+.Xr htmx 1
+loads the feed list automatically on page load.
+.It Sy GET /list
+Returns an HTML partial containing the current subscription cards.
+.It Sy GET /add
+Returns an HTML partial containing a blank add-subscription form.
+.It Sy GET /edit
+Returns an HTML partial containing a pre-filled edit form for the
+subscription identified by the
+.Va id
+query parameter.
+.It Sy POST /save
+Creates or updates a subscription.
+If the
+.Va id
+field is present the matching entry is updated in place; otherwise a
+new entry is appended.
+On success the updated list partial is returned.
+On write failure the in-memory state is restored to match the on-disk
+file.
+.It Sy POST /delete
+Soft-deletes the subscription identified by the
+.Va id
+query parameter,
+then writes
+.Pa feeds.xml
+and returns the updated list partial.
+.El
+.Sh FORM FIELDS
+The following fields are accepted by
+.Sy POST /save .
+All fields are required.
+.Bl -tag -width "pull_time"
+.It Va title
+Free-form subscription name.
+Maximum 256 bytes.
+.It Va url
+RSS feed URL.
+Must begin with
+.Li http://
+or
+.Li https:// .
+Maximum 2048 bytes.
+.It Va scope
+Download scope.
+One of:
+.Bl -tag -width "latest" -compact
+.It Li all
+Download all available episodes.
+.It Li latest
+Download the most recent episode only.
+.It Li none
+Do not download; track the feed without fetching.
+.El
+.It Va day
+Day of the week on which the cron job should sync this feed.
+One of:
+.Li Daily ,
+.Li Mon ,
+.Li Tue ,
+.Li Wed ,
+.Li Thu ,
+.Li Fri ,
+.Li Sat ,
+.Li Sun .
+.It Va pull_time
+Hour of the day (24-hour clock, zero-padded) at which the cron job
+should sync this feed.
+One of
+.Li 00
+through
+.Li 23 .
+.El
+.Sh ENVIRONMENT
+.Bl -tag -width "XDG_CONFIG_HOME"
+.It Ev XDG_CONFIG_HOME
+If set and non-empty, the configuration directory is
+.Pa $XDG_CONFIG_HOME/podcasts/ .
+.It Ev HOME
+If
+.Ev XDG_CONFIG_HOME
+is unset, the configuration directory is
+.Pa $HOME/.config/podcasts/ .
+.El
+.Sh FILES
+.Bl -tag -width "$HOME/.config/podcasts/feeds.xml.tmp"
+.It Pa $XDG_CONFIG_HOME/podcasts/feeds.xml
+Primary subscription database.
+Read at worker startup; written atomically on save and delete
+operations.
+Must be a regular file; symlinks are rejected.
+Maximum size 512\ KB.
+.It Pa $XDG_CONFIG_HOME/podcasts/feeds.xml.tmp
+Temporary file used during atomic write.
+Created alongside
+.Pa feeds.xml ,
+fully written, flushed, and renamed over the target.
+Removed on any write or rename failure.
+.It Pa $XDG_CONFIG_HOME/podcasts/feeds.xsl
+Optional XSL stylesheet reference embedded in the XML processing
+instruction of the written file.
+Not read or validated by
+.Nm .
+.El
+.Sh FEEDS.XML FORMAT
+The subscription file is a well-formed XML document conforming to the
+following structure:
+.Bd -literal -offset indent
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="feeds.xsl"?>
+<subscriptions>
+  <podcast title="NAME"
+           url="https://example.com/feed.rss"
+           scope="latest"
+           day="Daily"
+           pull_time="06" />
+</subscriptions>
+.Ed
+.Pp
+Each
+.Li <podcast>
+element is self-closing and carries all subscription data as
+attributes.
+Attribute values are entity-escaped on write
+.Pq Li & , Li \&" , Li < , Li >
+and entity-decoded on read by the XML parser.
+.Sh SANDBOXING
+On supported platforms,
+.Nm
+calls
+.Fn sandbox_lockdown_rw
+after
+.Pa feeds.xml
+is loaded and before the FastCGI accept loop begins.
+.Bl -tag -width "FreeBSD"
+.It Ox
+.Xr pledge 2
+is used with the promises
+.Li stdio unix inet wpath cpath .
+.It Nx
+.Xr pledge 2
+is used with the same promise string
+.Pq signature differs from OpenBSD .
+.It Fx
+.Xr cap_enter 2
+is used after
+.Xr cap_rights_limit 2
+constrains open file descriptors.
+Because capability mode forbids new
+.Xr open 2
+calls, the xml write path requires the file descriptor to be opened
+before
+.Fn sandbox_lockdown_rw
+is called.
+.It Linux
+A
+.Xr seccomp 2
+BPF filter allowing only the syscalls required for FastCGI I/O and
+file write is installed.
+Falls back gracefully
+.Pq no abort
+if the kernel does not support
+.Dv SECCOMP_SET_MODE_FILTER .
+.El
+.Sh EXIT STATUS
+.Nm
+exits 0 on normal FastCGI loop termination and 1 on any startup
+failure
+.Po
+configuration path unresolvable,
+.Pa feeds.xml
+unreadable or malformed,
+sandbox initialisation failure
+.Pc .
+HTTP-level errors are returned as HTML partial responses within
+the FastCGI loop; they do not cause process exit.
+.Sh DIAGNOSTICS
+.Nm
+does not log to
+.Xr syslog 3 .
+Errors encountered during the FastCGI loop are returned as inline
+HTML error messages to the browser.
+Startup failures exit silently with status 1; the FastCGI supervisor
+.Po
+.Xr spawn-fcgi 8 ,
+.Xr nginx 8 ,
+or similar
+.Pc
+will record the exit in its own logs.
+.Sh DEPENDENCIES
+.Bl -tag -width "kcgixml"
+.It Xr kcgi 3
+FastCGI request parsing, response framing, field validation.
+.It Xr khtml 3
+HTML generation for the SPA root document only.
+.It Xr kxml 3
+XML/HTML fragment generation for all htmx partial responses.
+.It Li xml.h
+mrvladus/xml.h \(em header-only XML parser and
+.Li XMLString
+growable buffer.
+.It Li sv.h
+tsoding/sv \(em string view primitives.
+.It Li arena.h
+Region-based allocator; all worker-lifetime allocations use the root
+arena, which is destroyed on process exit.
+.El
+.Sh SEE ALSO
+.Xr cap_enter 2 ,
+.Xr cap_rights_limit 2 ,
+.Xr pledge 2 ,
+.Xr rename 2 ,
+.Xr seccomp 2 ,
+.Xr kcgi 3 ,
+.Xr khtml 3 ,
+.Xr syslog 3 ,
+.Xr nginx 8 ,
+.Xr spawn-fcgi 8
+.Sh STANDARDS
+The SBOM for this program is published in CycloneDX 1.6 format.
+A companion SARIF 2.1.0 report documents the results of cppcheck
+static analysis and OSV CVE scanning against all versioned
+dependencies.
+.Sh AUTHORS
+.An Dwight Spencer Aq Mt denzuko@dapla.net
+.Sh CAVEATS
+.Pa feeds.xml
+is read once at worker startup.
+If the file is modified externally while the worker is running, the
+in-memory state will diverge from the on-disk state until the worker
+is restarted.
+.Pp
+The worker serves a single process; concurrent mutations from multiple
+browser tabs will race on the last
+.Xr rename 2
+win.
+For a single-user local tool this is acceptable.
+.Sh BUGS
+.Xr xml_node_serialize 3
+in mrvladus/xml.h emits malformed XML for self-closing nodes
+.Pq closing-tag syntax with attributes .
+.Nm
+works around this by building serialised output directly via
+.Li XMLString
+rather than calling
+.Fn xml_node_serialize .
