@@ -28,10 +28,18 @@ git config core.hooksPath .githooks
 ## Test
 
 ```sh
+# Unit tests (pure-C, no kcgi required)
 cc -std=c11 -D_GNU_SOURCE -I. -o test_main test_main.c && ./test_main
+
+# End-to-end build tests (requires cc; kcgi optional for full run)
+sh test_nob.sh
+
+# Skip kcgi-dependent suites (CI without kcgi)
+sh test_nob.sh --no-build
 ```
 
-52 xUnit test cases, no external framework. All must pass before committing.
+52 xUnit test cases in `test_main.c`. 22 end-to-end tests in `test_nob.sh`.
+All must pass before committing.
 
 ## Stack
 

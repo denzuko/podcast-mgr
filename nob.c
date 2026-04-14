@@ -7,7 +7,7 @@
  *  - Sorted link order: kcgixml and khtml depend on kcgi; kcgi depends on z.
  *    On static-link hosts (e.g. panix.com) order matters: most-dependent first.
  *  - Added -lexpat if your xml.h backend needs it (comment out if not).
- *  - Kept NOB_GO_REBUILD_SELF for self-rebuild on nob.c changes.
+ *  - Kept NOB_GO_REBUILD_URSELF for self-rebuild on nob.c changes.
  *
  * Usage:
  *   cc -o nob nob.c && ./nob
@@ -19,7 +19,7 @@
 #define TARGET "index.cgi"
 
 int main(int argc, char **argv) {
-    NOB_GO_REBUILD_SELF(argc, argv);
+    NOB_GO_REBUILD_URSELF(argc, argv);
 
     Nob_Cmd cmd = {0};
 
