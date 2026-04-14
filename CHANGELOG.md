@@ -228,3 +228,44 @@ Correct tool responsibilities:
 | Static analysis | `cppcheck` |
 | Transform/merge | `jq` |
 | Policy/validation | `opa` + Rego |
+
+## [1.2.0] — 2026-04-14
+
+### Changed
+
+- **Repo restructure** (Closes #2):
+  - `src/` — `main.c`, `sandbox.h`, `arena.h`, `xml.h`, `sv.h`
+  - `man/` — `index.cgi.8`, `podcast-mgr.ieee829.7`, `podcast-mgr.iso10007.7`, `podcast-mgr.iso12207.7`
+  - `nob.c`: `-Isrc`, `src/main.c`, all references updated
+  - Generated artefacts (`ast.json`, `cflow.txt`, `sbom.json`, `podcast_mgr.sarif`,
+    `vex.cdx.json`, `nob_ast.json`) removed from git tracking, added to `.gitignore`
+
+- **`test_nob.sh`** — Suite 1 (grep-source assertions) removed entirely.
+  Rationale: the compiler catches typos; cppcheck catches style violations;
+  `policy/nob_ast.rego` enforces structural invariants. Grepping C source
+  in a shell script is an anti-pattern for a compiled language.
+
+- **`./nob cflow`** subcommand added — generates `cflow.txt` call graph via `cflow(1)`.
+
+- **`./nob nob-ast`** subcommand added — generates `nob_ast.json` from
+  clang AST of `nob.c` via `scripts/nob_ast_filter.jq`.
+
+### Added
+
+- **`policy/nob_ast.rego`** — build driver security and quality policy (7 rules):
+  1. No `system()` in any `cmd_*` function
+  2. No `popen()` — use `nob_cmd_run(.stdout_path=...)` instead
+  3. No `exec*()`/`fork()` — process creation via `nob_cmd_run` only
+  4. No `dlopen()` — no runtime dynamic loading in the build driver
+  5. Every `cmd_*` (except `cmd_test`, `cmd_all`, `cmd_help`) calls at least one `nob_` API
+  6. `cmd_all` only calls other `cmd_*` functions, not external tools directly
+  7. All 13 expected subcommands present (guards accidental removal)
+
+- **`scripts/nob_ast_filter.jq`** — jq filter for nob.c AST (mirrors `ast_filter.jq`)
+
+- **`release_gate.rego`** updated to include `nob_ast` violations in the aggregate gate.
+
+### Removed
+
+- `scripts/ast_filter.py` — superseded by `scripts/ast_filter.jq`
+- `scripts/gen_ast.sh` — logic moved into `nob.c cmd_ast` directly

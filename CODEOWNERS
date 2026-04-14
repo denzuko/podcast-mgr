@@ -1,24 +1,23 @@
 # CODEOWNERS
-# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-#
-# Global owner — all files require review from denzuko
 * @denzuko
 
-# CGI worker and build
-main.c    @denzuko
-nob.c     @denzuko
-sandbox.h @denzuko
+# Source
+src/main.c    @denzuko
+src/sandbox.h @denzuko
+nob.c         @denzuko
+nob.h         @denzuko
 
-# Sync script
-podcast.sh @denzuko
+# Scripts
+podcast.sh         @denzuko
+scripts/           @denzuko
 
-# Schema — changes affect both the CGI and podcast.sh
+# Schema
 feeds.xsd @denzuko
 
-# Security artefacts — regenerate before merge
-sbom.json          @denzuko
-podcast_mgr.sarif  @denzuko
+# Security artefacts — regenerated, but gate requires review if re-committed
+# (normally in .gitignore)
 
 # Documentation
-index.cgi.8 @denzuko
-README.md   @denzuko
+man/       @denzuko
+README.md  @denzuko
+CLAUDE.md  @denzuko

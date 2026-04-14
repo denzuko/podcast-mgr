@@ -25,6 +25,11 @@ run       := input.runs[0]
 summary   := run.properties.scanSummary
 driver    := run.tool.driver
 
+
+# ── Helper: location is in project source ────────────────────────────────
+is_project_source(uri) if endswith(uri, "main.c")
+is_project_source(uri) if endswith(uri, "src/main.c")
+
 # ── Rule 1: SARIF version ─────────────────────────────────────────────────
 
 deny contains msg if {
@@ -49,7 +54,7 @@ deny contains msg if {
     mainc_errors := [r |
         some r in run.results
         startswith(r.ruleId, "cppcheck/")
-        endswith(r.locations[0].physicalLocation.artifactLocation.uri, "main.c")
+        is_project_source(r.locations[0].physicalLocation.artifactLocation.uri)
         r.level in {"error", "warning"}
     ]
     count(mainc_errors) > 0
@@ -66,7 +71,7 @@ deny contains msg if {
 deny contains msg if {
     some result in run.results
     startswith(result.ruleId, "cppcheck/")
-    endswith(result.locations[0].physicalLocation.artifactLocation.uri, "main.c")
+    is_project_source(result.locations[0].physicalLocation.artifactLocation.uri)
     result.level in {"error", "warning"}
     msg := sprintf(
         "cppcheck '%s' level '%s' in main.c — resolve before release",
@@ -93,7 +98,7 @@ deny contains msg if {
     some result in run.results
     startswith(result.ruleId, "cppcheck/")
     loc := result.locations[0].physicalLocation.artifactLocation.uri
-    endswith(loc, "main.c")
+    is_project_source(loc)
     result.level in {"error", "warning"}
     msg := sprintf(
         "cppcheck finding in main.c '%s' level '%s' — resolve before release",
