@@ -94,7 +94,7 @@ assert_true "$(check "grep -q '#define NOB_IMPLEMENTATION' '$REPO/nob.c'")" \
     "grep NOB_IMPLEMENTATION nob.c"
 
 t "nob.c defines TARGET as index.cgi"
-assert_true "$(check "grep -q '#define TARGET .index.cgi.' '$REPO/nob.c'")" \
+assert_true "$(check "grep -qE '#define TARGET[[:space:]]+.index\.cgi.' '$REPO/nob.c'")" \
     "grep TARGET index.cgi"
 
 t "nob.c calls NOB_GO_REBUILD_URSELF"

@@ -119,3 +119,29 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (3) libpython3.12-dev is a build-host header dep — no Python runtime shipped;
   (4) linux-libc-dev NVD CPE false positive (wu-ftpd CVE matched against kernel headers).
   Document linked to SBOM via sbom-serial property.
+
+### Changed
+
+- `nob.c` refactored as a full subcommand runner. All administrative tasks
+  are now `./nob <subcommand>` — no separate scripts needed at the CLI:
+
+  | Subcommand   | What it runs |
+  |--------------|--------------|
+  | `(none)`, `build` | compile `index.cgi` |
+  | `test`       | `test_main` + `test_nob.sh` |
+  | `test-unit`  | `test_main` (52 xUnit cases) |
+  | `test-e2e`   | `test_nob.sh` (22 build tests) |
+  | `ast`        | clang AST dump → `scripts/gen_ast.sh --filter` → `ast.json` |
+  | `sbom`       | cdxgen → `sbom.json` |
+  | `sarif`      | cppcheck + `scripts/gen_sarif.py` → `podcast_mgr.sarif` |
+  | `vex`        | OPA `policy/vex.rego` validate `vex.cdx.json` |
+  | `policy`     | full OPA gate: sarif + sbom + vex + ast |
+  | `clean`      | remove `index.cgi`, `test_main`, `nob` |
+  | `all`        | build + test + ast + sbom + sarif + policy |
+  | `help`       | print usage |
+
+- `scripts/gen_ast.sh` updated with `--filter` and `--check` modes.
+  `--filter` skips the clang dump step (used by `./nob ast`).
+  `--check` exits 1 if `ast.json` is stale (useful in CI).
+
+- `test_nob.sh` TARGET grep updated to tolerate whitespace after `#define`.
