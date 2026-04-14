@@ -269,3 +269,52 @@ Correct tool responsibilities:
 
 - `scripts/ast_filter.py` — superseded by `scripts/ast_filter.jq`
 - `scripts/gen_ast.sh` — logic moved into `nob.c cmd_ast` directly
+
+## [1.3.0] — 2026-04-14
+
+### Added
+
+- **DAG-based subcommand chaining** (Closes #4):
+  `nob.c` now has a static dependency graph. `dag_run(name)` performs a
+  DFS topological sort — each node executes exactly once per invocation,
+  deps before the node itself. Duplicate runs (e.g. `sbom` referenced by
+  both `sarif` and `policy`) are deduplicated via a visited bitset.
+
+  Dependency edges:
+  ```
+  test    → build
+  sarif   → sbom
+  policy  → ast, nob-ast, sbom, sarif
+  all     → build, test, ast, nob-ast, cflow, sbom, sarif, policy
+  ```
+
+  `cmd_all` is now a **virtual DAG node** (no fn pointer, deps only).
+  The dispatch table routes everything except `test-unit`, `test-e2e`,
+  and `help` through `dag_find`/`dag_run`.
+
+  ```c
+  typedef bool (*CmdFn)(void);
+  typedef struct {
+      const char  *name;
+      CmdFn        fn;       /* NULL for virtual aggregate nodes */
+      const char **deps;
+      size_t       ndeps;
+  } Node;
+  ```
+
+  Adding a new subcommand requires only a single row in `dag_nodes[]` —
+  no edits to `cmd_all` or the dispatch table.
+
+- `vex.cdx.json` restored to git tracking — it is human-authored and
+  belongs in source control. Removed from `.gitignore`.
+
+- `scripts/nob_ast_filter.jq` updated: added `cmd_nob_ast`, removed
+  `cmd_all` (virtual node, no C function).
+
+- `policy/nob_ast.rego` updated: `required_commands` no longer includes
+  `cmd_all` (virtual DAG node) or `cmd_help` (no nob_ API calls by design).
+
+### Removed
+
+- `cmd_all` C function — replaced by virtual DAG node in `dag_nodes[]`.
+- Manual dep-generation block in `cmd_policy` — DAG guarantees ordering.

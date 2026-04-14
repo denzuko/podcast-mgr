@@ -31,7 +31,6 @@ ast.json
 cflow.txt
 sbom.json
 podcast_mgr.sarif
-vex.cdx.json
 /tmp/podcast_mgr_*.json
 /tmp/podcast_mgr_*.sarif
 /tmp/podcast_mgr_*.xml
