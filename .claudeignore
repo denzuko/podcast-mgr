@@ -25,3 +25,6 @@ sv.h
 *.swp
 *~
 .DS_Store
+
+# Raw clang AST (large, regenerated)
+/tmp/podcast_mgr_ast_raw.json

@@ -1,0 +1,34 @@
+# conftest.toml — conftest configuration for podcast-mgr policy checks
+#
+# Run all policies:
+#   sh scripts/gen_ast.sh
+#   conftest test podcast_mgr.sarif sbom.json vex.cdx.json ast.json
+
+[runner]
+  policy = ["policy"]
+  output = "table"
+  no_fail = false
+
+[[policies]]
+  name       = "SARIF scan gate"
+  policy     = "policy/sarif.rego"
+  namespace  = "podcast_mgr.sarif"
+  input      = "podcast_mgr.sarif"
+
+[[policies]]
+  name       = "SBOM completeness"
+  policy     = "policy/sbom.rego"
+  namespace  = "podcast_mgr.sbom"
+  input      = "sbom.json"
+
+[[policies]]
+  name       = "VEX validity"
+  policy     = "policy/vex.rego"
+  namespace  = "podcast_mgr.vex"
+  input      = "vex.cdx.json"
+
+[[policies]]
+  name       = "AST code style"
+  policy     = "policy/ast.rego"
+  namespace  = "podcast_mgr.ast"
+  input      = "ast.json"

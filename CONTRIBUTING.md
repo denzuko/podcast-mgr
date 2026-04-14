@@ -16,6 +16,16 @@ podcast client. The scope is: manage `feeds.xml` in a browser; let
 
 ## Before you open a PR
 
+1. **Run policy checks before PR:**
+
+   ```sh
+   sh scripts/gen_ast.sh
+   opa eval -d policy/sarif.rego -i podcast_mgr.sarif 'data.podcast_mgr.sarif.allow'
+   conftest test --policy policy/ --namespace podcast_mgr.sbom sbom.json \
+     --namespace podcast_mgr.vex vex.cdx.json --namespace podcast_mgr.ast ast.json
+   ```
+
+
 1. **Run both test suites and confirm they pass:**
 
    ```sh
