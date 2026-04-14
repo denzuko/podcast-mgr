@@ -339,7 +339,7 @@ static void xml_str_escape(XMLString *out, const char *data, size_t len) {
         case '<': xml_string_append(out, "&lt;");   break;
         case '>': xml_string_append(out, "&gt;");   break;
         default: {
-            char c[2] = { data[i], '\0' };
+            const char c[2] = { data[i], '\0' };
             xml_string_append(out, c);
         }
         }
@@ -794,7 +794,10 @@ int main(void) {
     PodcastArray db = { .arena = &arena };
     if (0 != load_feeds_xml(xml_path, &arena, &db)) goto done;
 
-    if (0 != sandbox_lockdown_rw(-1)) goto done;
+    /* sandbox_lockdown_rw returns 0 only on SANDBOX_SECCOMP_DISABLED
+     * (unknown-arch stub). On x86_64/aarch64/riscv64 it calls prctl+seccomp
+     * and can genuinely return -1.  Suppress the false-positive warning. */
+    if (0 != sandbox_lockdown_rw(-1)) goto done; // cppcheck-suppress knownConditionTrueFalse
 
     struct kreq r;
     while (KCGI_OK == khttp_fcgi_parse(fcgi, &r)) {

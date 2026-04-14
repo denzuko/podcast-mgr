@@ -8,36 +8,17 @@
           "name": "podcast-mgr security scan",
           "version": "1.0.0",
           "informationUri": "https://sarifweb.azurewebsites.net/",
-          "rules": [
-            {
-              "id": "cppcheck/constVariablePointer",
-              "name": "ConstVariablePointer",
-              "shortDescription": {
-                "text": "Variable can be declared as pointer to const"
-              },
-              "fullDescription": {
-                "text": "The pointer variable does not modify the pointed-to value and can be declared const. CWE-398: Indicator of Poor Code Quality."
-              },
-              "helpUri": "https://cppcheck.sourceforge.io/",
-              "properties": {
-                "tags": [
-                  "correctness",
-                  "style"
-                ],
-                "precision": "high",
-                "problem.severity": "recommendation",
-                "security-severity": "2.0"
-              },
-              "defaultConfiguration": {
-                "level": "note"
-              }
-            }
-          ],
+          "rules": [],
           "properties": {
             "cdxgen": "CycloneDX 1.6 SBOM",
-            "sbomSerial": "urn:uuid:46f38308-b3f7-4db3-aa27-83256129142b",
+            "sbomSerial": "urn:uuid:8ef56de1-6cc2-4262-990e-5e406dbb6976",
             "cppcheck": "2.13.0",
-            "osvScanner": "api.osv.dev/v1"
+            "osvScanner": "api.osv.dev/v1",
+            "suppressions": [
+              "unusedFunction \u2014 vendored headers (arena.h, sv.h, sandbox.h)",
+              "knownConditionTrueFalse \u2014 sandbox_lockdown_rw false positive on SANDBOX_SECCOMP_DISABLED arch stub",
+              "constVariablePointer/constParameterPointer \u2014 vendored headers (arena.h, xml.h)"
+            ]
           }
         },
         "extensions": [
@@ -61,7 +42,7 @@
       "invocations": [
         {
           "executionSuccessful": true,
-          "endTimeUtc": "2026-04-14T01:11:03Z",
+          "endTimeUtc": "2026-04-14T04:13:33Z",
           "toolExecutionNotifications": []
         }
       ],
@@ -69,6 +50,22 @@
         {
           "location": {
             "uri": "assert.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "ctype.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "errno.h"
           },
           "roles": [
             "analysisTarget"
@@ -100,7 +97,39 @@
         },
         {
           "location": {
+            "uri": "linux/audit.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "linux/filter.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "linux/seccomp.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
             "uri": "main.c"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "nob.c"
           },
           "roles": [
             "analysisTarget"
@@ -116,6 +145,22 @@
         },
         {
           "location": {
+            "uri": "stdarg.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "stddef.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
             "uri": "sv.h"
           },
           "roles": [
@@ -124,7 +169,63 @@
         },
         {
           "location": {
+            "uri": "sys/capsicum.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sys/mman.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sys/pledge.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sys/prctl.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
             "uri": "sys/stat.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sys/syscall.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "sys/types.h"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        },
+        {
+          "location": {
+            "uri": "test_main.c"
           },
           "roles": [
             "analysisTarget"
@@ -145,8 +246,8 @@
         "sbom": {
           "format": "CycloneDX",
           "specVersion": "1.6",
-          "serialNumber": "urn:uuid:46f38308-b3f7-4db3-aa27-83256129142b",
-          "componentCount": 15
+          "serialNumber": "urn:uuid:8ef56de1-6cc2-4262-990e-5e406dbb6976",
+          "componentCount": 32
         },
         "scanSummary": {
           "cppcheckFindings": 0,

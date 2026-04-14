@@ -75,3 +75,36 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `path_is_safe()` traversal check on `XDG_CONFIG_HOME` — operator
   controls their own environment.
 - `send_html`/`send_partial` distinction — identical after CSRF removal.
+
+## [Unreleased]
+
+### Fixed
+
+- `main.c`: `xml_str_escape` single-char fallback buffer promoted to
+  `const char c[2]` — was writeable but never written (cppcheck CWE-398).
+- `main.c`: `Arena arena = {0}` — replaced `arena_init(4M)` with
+  zero-value init matching the real tsoding/arena API.
+- `main.c`: `arena_free(&arena)` — replaced stub `arena_destroy` call
+  with correct tsoding/arena function name.
+- `main.c`: `#define ARENA_IMPLEMENTATION` added before arena.h include.
+- `test_main.c`: same `ARENA_IMPLEMENTATION` guard added.
+- `nob.c`: `NOB_GO_REBUILD_URSELF` — macro renamed from
+  `NOB_GO_REBUILD_SELF` to match current tsoding/nob.h API; would have
+  caused an undefined-reference link failure on fresh clone.
+
+### Changed
+
+- `arena.h`: replaced minimal test stub with real tsoding/arena
+  (github.com/tsoding/arena, MIT licence).
+- `sbom.json`: regenerated with cdxgen 12.1.5 — 32 components detected
+  (was 15); arena.h, nob.h, sandbox.h and platform syscall headers now
+  included.
+- `podcast_mgr.sarif`: regenerated — 0 cppcheck findings (main.c only),
+  0 OSV CVE findings across all 8 versioned components, PASS.
+  Suppression rationale documented in tool driver properties for
+  vendored-header false positives.
+
+### Security
+
+- cppcheck 2.13.0 (main.c only): 0 findings post-fix.
+- OSV CVE scan: 0 findings across 8 versioned components.
