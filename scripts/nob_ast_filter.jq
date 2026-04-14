@@ -16,8 +16,8 @@ def calls_in: .. | objects | select(.kind == "CallExpr") | .inner[0] | callee_na
     | select(.kind == "FunctionDecl")
     | select(.name | IN(
         "require_tool","cmd_build","cmd_test_unit","cmd_test_e2e","cmd_test",
-        "cmd_ast","cmd_cflow","cmd_sbom","cmd_sarif","cmd_vex","cmd_policy",
-        "cmd_clean","cmd_all","cmd_help","main"))
+        "cmd_ast","cmd_nob_ast","cmd_cflow","cmd_sbom","cmd_sarif","cmd_vex","cmd_policy",
+        "cmd_clean","cmd_help","main"))
     | {
         name: .name,
         return_type: .type.qualType,
@@ -35,8 +35,8 @@ def calls_in: .. | objects | select(.kind == "CallExpr") | .inner[0] | callee_na
     .inner[] | select(.kind == "FunctionDecl")
     | select(.name | IN(
         "require_tool","cmd_build","cmd_test_unit","cmd_test_e2e","cmd_test",
-        "cmd_ast","cmd_cflow","cmd_sbom","cmd_sarif","cmd_vex","cmd_policy",
-        "cmd_clean","cmd_all","cmd_help","main"))
+        "cmd_ast","cmd_nob_ast","cmd_cflow","cmd_sbom","cmd_sarif","cmd_vex","cmd_policy",
+        "cmd_clean","cmd_help","main"))
     | .name
   ]
 }

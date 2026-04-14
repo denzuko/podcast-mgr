@@ -132,8 +132,10 @@ deny contains msg if {
 
 required_commands := {
     "cmd_build", "cmd_test", "cmd_test_unit", "cmd_test_e2e",
-    "cmd_ast", "cmd_cflow", "cmd_sbom", "cmd_sarif",
-    "cmd_vex", "cmd_policy", "cmd_clean", "cmd_all", "cmd_help"
+    "cmd_ast", "cmd_nob_ast", "cmd_cflow", "cmd_sbom", "cmd_sarif",
+    "cmd_vex", "cmd_policy", "cmd_clean"
+    # cmd_all removed: it is now a virtual DAG aggregate node (no fn ptr),
+    # defined in the dag_nodes table rather than as a standalone C function.
 }
 
 deny contains msg if {

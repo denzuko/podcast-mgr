@@ -389,29 +389,9 @@ static bool cmd_policy(void) {
     nob_log(NOB_INFO, "==> policy: running release gate");
     if (!require_tool("opa")) return false;
 
-    /* Regenerate AST if absent or stale vs src/main.c */
-    if (!nob_file_exists(AST_OUT) || nob_needs_rebuild1(AST_OUT, "src/main.c") > 0) {
-        nob_log(NOB_INFO, "policy: %s absent/stale — regenerating", AST_OUT);
-        if (!cmd_ast()) return false;
-    }
-
-    /* Generate SBOM if absent */
-    if (!nob_file_exists(SBOM_OUT)) {
-        nob_log(NOB_INFO, "policy: %s absent — generating", SBOM_OUT);
-        if (!cmd_sbom()) return false;
-    }
-
-    /* Generate SARIF if absent */
-    if (!nob_file_exists(SARIF_OUT)) {
-        nob_log(NOB_INFO, "policy: %s absent — generating", SARIF_OUT);
-        if (!cmd_sarif()) return false;
-    }
-
-    /* Regenerate nob-ast if absent or stale vs nob.c */
-    if (!nob_file_exists(NOB_AST_OUT) || nob_needs_rebuild1(NOB_AST_OUT, "nob.c") > 0) {
-        nob_log(NOB_INFO, "policy: %s absent/stale — regenerating", NOB_AST_OUT);
-        if (!cmd_nob_ast()) return false;
-    }
+    /* Deps (ast, nob-ast, sbom, sarif) are guaranteed to have run before
+     * this function when invoked via the DAG (dag_run("policy")).
+     * Direct invocation (./nob policy) also triggers dep resolution. */
 
     static const PolicyCheck checks[] = {
         { "sarif",   "policy/sarif.rego",
@@ -494,18 +474,103 @@ static bool cmd_clean(void) {
 }
 
 /* =========================================================================
- * all
+ * DAG — dependency graph, topological executor, and cmd_all
+ *
+ * Each Node has a name, a function pointer, and a list of dependency names.
+ * dag_run(name) performs a DFS: runs all deps before the node itself, and
+ * visits each node exactly once regardless of how many chains reference it.
+ *
+ * Adding a subcommand: add a Node row. Deps are resolved by name at runtime.
  * ====================================================================== */
 
-static bool cmd_all(void) {
-    if (!cmd_build())  return false;
-    if (!cmd_test())   return false;
-    if (!cmd_ast())    return false;
-    if (!cmd_sbom())   return false;
-    if (!cmd_sarif())  return false;
-    if (!cmd_policy()) return false;
-    nob_log(NOB_INFO, "==> all: complete");
+typedef bool (*CmdFn)(void);
+
+typedef struct {
+    const char  *name;
+    CmdFn        fn;
+    const char **deps;
+    size_t       ndeps;
+} Node;
+
+/* Visited flags — index matches node table order.
+ * Static so the DFS state persists across recursive calls in one run. */
+#define MAX_NODES 32
+static bool dag_visited[MAX_NODES];
+static bool dag_failed[MAX_NODES];
+
+/* Convenience macro: list deps as a compound literal */
+#define DEPS(...) ((const char *[]){__VA_ARGS__}), \
+                  (sizeof((const char *[]){__VA_ARGS__}) / sizeof(const char *))
+#define NO_DEPS   NULL, 0
+
+/* Forward declarations for functions referenced in dag_nodes.
+ * Only needed for cmd_policy which references cmd_ast etc. defined later —
+ * but all cmd_* are defined BEFORE this section, so none are needed.
+ * Kept as documentation of the full node set. */
+
+static const Node dag_nodes[] = {
+    /* name         fn             deps                          */
+    { "build",   cmd_build,   NO_DEPS                          },
+    { "test",    cmd_test,    DEPS("build")                    },
+    { "ast",     cmd_ast,     NO_DEPS                          },
+    { "nob-ast", cmd_nob_ast, NO_DEPS                          },
+    { "cflow",   cmd_cflow,   NO_DEPS                          },
+    { "sbom",    cmd_sbom,    NO_DEPS                          },
+    { "sarif",   cmd_sarif,   DEPS("sbom")                     },
+    { "vex",     cmd_vex,     NO_DEPS                          },
+    { "policy",  cmd_policy,  DEPS("ast","nob-ast","sbom","sarif") },
+    { "clean",   cmd_clean,   NO_DEPS                          },
+    { "all",     NULL,        DEPS("build","test","ast","nob-ast",
+                                   "cflow","sbom","sarif","policy") },
+};
+#define DAG_LEN (sizeof(dag_nodes) / sizeof(dag_nodes[0]))
+
+static_assert(DAG_LEN <= MAX_NODES, "dag_nodes exceeds MAX_NODES — increase it");
+
+static int dag_find(const char *name) {
+    for (int i = 0; i < (int)DAG_LEN; i++)
+        if (strcmp(dag_nodes[i].name, name) == 0) return i;
+    return -1;
+}
+
+/* DFS topological executor. Returns false on first failure. */
+static bool dag_run(const char *name) {
+    int idx = dag_find(name);
+    if (idx < 0) {
+        nob_log(NOB_ERROR, "dag: unknown node '%s'", name);
+        return false;
+    }
+    if (dag_failed[idx])  return false;   /* propagate earlier failure */
+    if (dag_visited[idx]) return true;    /* already ran successfully  */
+
+    const Node *n = &dag_nodes[idx];
+
+    /* Run deps first */
+    for (size_t d = 0; d < n->ndeps; d++) {
+        if (!dag_run(n->deps[d])) {
+            dag_failed[idx] = true;
+            return false;
+        }
+    }
+
+    /* Run this node (NULL fn = virtual aggregate node — deps only) */
+    if (n->fn) {
+        nob_log(NOB_INFO, "dag: running '%s'", name);
+        if (!n->fn()) {
+            nob_log(NOB_ERROR, "dag: '%s' failed", name);
+            dag_failed[idx] = true;
+            return false;
+        }
+    }
+
+    dag_visited[idx] = true;
     return true;
+}
+
+/* Reset DAG state — call before each top-level dag_run invocation */
+static void dag_reset(void) {
+    memset(dag_visited, 0, sizeof(dag_visited));
+    memset(dag_failed,  0, sizeof(dag_failed));
 }
 
 /* =========================================================================
@@ -518,19 +583,25 @@ static void cmd_help(const char *prog) {
         "\n"
         "Subcommands:\n"
         "  (none), build   Compile " TARGET "\n"
-        "  test            Run unit + e2e tests\n"
+        "  test            Run unit + e2e tests (dep: build)\n"
         "  test-unit       Run test_main (52 xUnit cases)\n"
-        "  test-e2e        Run test_nob.sh (22 build tests)\n"
+        "  test-e2e        Run test_nob.sh build tests\n"
         "  ast             Regenerate " AST_OUT " via clang + jq\n"
         "  nob-ast         Regenerate " NOB_AST_OUT " (build driver AST)\n"
         "  cflow           Generate " CFLOW_OUT " static call graph\n"
         "  sbom            Regenerate " SBOM_OUT " via cdxgen\n"
-        "  sarif           Regenerate " SARIF_OUT " (cppcheck + OSV)\n"
+        "  sarif           Regenerate " SARIF_OUT " (dep: sbom)\n"
         "  vex             Validate " VEX_OUT " via OPA\n"
-        "  policy          Full OPA release gate (all four policies)\n"
+        "  policy          Full OPA release gate (dep: ast,nob-ast,sbom,sarif)\n"
         "  clean           Remove " TARGET ", " TEST_BIN ", nob\n"
-        "  all             build + test + ast + sbom + sarif + policy\n"
+        "  all             Full pipeline via DAG\n"
         "  help            Print this message\n"
+        "\n"
+        "DAG dependency edges:\n"
+        "  test    → build\n"
+        "  sarif   → sbom\n"
+        "  policy  → ast, nob-ast, sbom, sarif\n"
+        "  all     → build, test, ast, nob-ast, cflow, sbom, sarif, policy\n"
         "\n"
         "Tool requirements per subcommand:\n"
         "  build           cc, kcgi headers\n"
@@ -545,9 +616,9 @@ static void cmd_help(const char *prog) {
         "\n"
         "Examples:\n"
         "  cc -o nob nob.c && ./nob          # build index.cgi\n"
-        "  ./nob test                         # run all tests\n"
-        "  ./nob policy                       # release gate\n"
-        "  ./nob all                          # full pipeline\n",
+        "  ./nob test                         # build then test\n"
+        "  ./nob policy                       # full release gate\n"
+        "  ./nob all                          # complete DAG pipeline\n",
         prog);
 }
 
@@ -559,24 +630,20 @@ int main(int argc, char **argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
     const char *prog = nob_shift(argv, argc);
-    if (argc == 0) return cmd_build() ? 0 : 1;
+    if (argc == 0) { dag_reset(); return dag_run("build") ? 0 : 1; }
 
     const char *sub = nob_shift(argv, argc);
 
-    if (strcmp(sub, "build")     == 0) return cmd_build()     ? 0 : 1;
-    if (strcmp(sub, "test")      == 0) return cmd_test()      ? 0 : 1;
+    /* Leaf subcommands that bypass the DAG (no deps, run directly) */
     if (strcmp(sub, "test-unit") == 0) return cmd_test_unit() ? 0 : 1;
     if (strcmp(sub, "test-e2e")  == 0) return cmd_test_e2e()  ? 0 : 1;
-    if (strcmp(sub, "ast")       == 0) return cmd_ast()       ? 0 : 1;
-    if (strcmp(sub, "nob-ast")   == 0) return cmd_nob_ast()   ? 0 : 1;
-    if (strcmp(sub, "cflow")     == 0) return cmd_cflow()     ? 0 : 1;
-    if (strcmp(sub, "sbom")      == 0) return cmd_sbom()      ? 0 : 1;
-    if (strcmp(sub, "sarif")     == 0) return cmd_sarif()     ? 0 : 1;
-    if (strcmp(sub, "vex")       == 0) return cmd_vex()       ? 0 : 1;
-    if (strcmp(sub, "policy")    == 0) return cmd_policy()    ? 0 : 1;
-    if (strcmp(sub, "clean")     == 0) return cmd_clean()     ? 0 : 1;
-    if (strcmp(sub, "all")       == 0) return cmd_all()       ? 0 : 1;
     if (strcmp(sub, "help")      == 0) { cmd_help(prog); return 0; }
+
+    /* Everything else routes through the DAG */
+    if (dag_find(sub) >= 0) {
+        dag_reset();
+        return dag_run(sub) ? 0 : 1;
+    }
 
     nob_log(NOB_ERROR,
             "unknown subcommand '%s'  (run '%s help')", sub, prog);
