@@ -1,0 +1,69 @@
+# .htaccess — podcast-mgr FastCGI configuration for Apache httpd
+#
+# Place this file in the directory that contains index.cgi, or adapt
+# for inclusion in httpd.conf / a <Directory> block.
+#
+# Requirements:
+#   mod_rewrite    — URL routing
+#   mod_fcgid      — FastCGI process management (preferred)
+#   OR mod_fastcgi — alternative FastCGI module
+#
+# mod_fcgid is the modern choice; mod_fastcgi is legacy but still common
+# on older BSD/Linux hosts (e.g. panix.com shared hosting).
+
+Options +ExecCGI
+DirectoryIndex index.cgi
+
+# ── mod_rewrite: mount SPA at /podcast/ ───────────────────────────────────
+RewriteEngine On
+
+# Redirect bare /podcast to the SPA shell
+RewriteRule ^$ /podcast/index.cgi/index [R=301,L]
+
+# Route all requests under the mount point to index.cgi
+# PATH_INFO is the portion after index.cgi
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^index\.cgi(/.*)?$ index.cgi/$1 [L,QSA]
+
+# Block direct reads of config files
+RewriteRule ^feeds\.(xml|xsd|xsl)$ - [F,L]
+
+# ── mod_fcgid process management ──────────────────────────────────────────
+<IfModule mod_fcgid.c>
+    AddHandler fcgid-script .cgi
+
+    # One persistent worker process
+    FcgidMaxProcesses       1
+    FcgidMinProcessesPerClass 1
+
+    # index.cgi reads feeds.xml from $HOME/.config/podcasts/feeds.xml
+    # Adjust to the account running Apache on this host
+    FcgidInitialEnv HOME /home/denzuko
+    # FcgidInitialEnv XDG_CONFIG_HOME /home/denzuko/.config
+
+    # Timeout — index.cgi is fast; this is conservative
+    FcgidIOTimeout 30
+</IfModule>
+
+# ── mod_fastcgi (legacy) ──────────────────────────────────────────────────
+<IfModule mod_fastcgi.c>
+    AddHandler fastcgi-script .cgi
+
+    # Static (persistent) FastCGI server
+    # FastCgiServer /path/to/index.cgi -processes 1
+
+    # Or use the dynamic launcher (simpler for shared hosting)
+    FastCgiConfig -autoUpdate -idle-timeout 30
+</IfModule>
+
+# ── Security headers ──────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+    # Prevent the browser from MIME-sniffing responses
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Restrict framing to same origin
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # No referrer leakage from this local tool
+    Header always set Referrer-Policy "no-referrer"
+</IfModule>
