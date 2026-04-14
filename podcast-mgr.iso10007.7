@@ -1,0 +1,186 @@
+.\" podcast-mgr.iso10007.7
+.\" ISO 10007:2003 Configuration Management Guidelines
+.\" Dwight Spencer <denzuko@dapla.net>
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd April 14, 2026
+.Dt PODCAST-MGR.ISO10007 7
+.Os
+.Sh NAME
+.Nm podcast-mgr.iso10007
+.Nd configuration management plan per ISO 10007:2003
+.Sh DESCRIPTION
+This document defines the configuration management
+.Pq CM
+plan for
+.Nm podcast-mgr
+in accordance with ISO 10007:2003
+.Em Quality management systems \(em Guidelines for configuration management .
+.Sh SCOPE
+CM applies to all files in the
+.Nm podcast-mgr
+repository from the first tagged release onward.
+The CM authority is the sole project owner,
+.An Dwight Spencer Aq Mt denzuko@dapla.net .
+.Sh CONFIGURATION ITEMS
+A configuration item
+.Pq CI
+is any artifact whose change must be tracked, reviewed, and recorded.
+.Pp
+.Bl -column "podcast_mgr.sarif" "Security" "Regenerate before release" -compact
+.It Sy Item Ta Sy Class Ta Sy Change rule
+.It Pa main.c Ta Source Ta CODEOWNERS review + linear history
+.It Pa sandbox.h Ta Source Ta CODEOWNERS review + linear history
+.It Pa nob.c Ta Build Ta CODEOWNERS review
+.It Pa podcast.sh Ta Source Ta CODEOWNERS review + linear history
+.It Pa feeds.xsd Ta Schema Ta Both CGI and script owners review
+.It Pa index.cgi.8 Ta Documentation Ta Update with any interface change
+.It Pa sbom.json Ta Security Ta Regenerate on each release
+.It Pa podcast_mgr.sarif Ta Security Ta Regenerate on each release
+.It Pa CHANGELOG.md Ta Record Ta Update before tagging
+.El
+.Sh IDENTIFICATION
+.Ss Version Identification
+Versions are identified by Git tag in the form
+.Sy vMAJOR.MINOR
+.Pq e.g., Sy v1.0 .
+Tags are annotated objects pushed to origin; the tag message records
+the release summary.
+.Pp
+.Bl -tag -width "MAJOR" -compact
+.It Sy MAJOR
+Incremented on breaking changes to
+.Pa feeds.xml
+schema, route interface, or sandbox API.
+.It Sy MINOR
+Incremented on backward-compatible additions or fixes.
+.El
+.Ss Item Identification
+Each configuration item is identified by its repository path relative
+to the root.
+The authoritative revision of any item is its content at the current
+release tag on the
+.Sy main
+branch.
+.Ss Baseline
+The baseline for version 1.0 is commit
+.Sy 36fb707
+tagged
+.Sy v1.0
+on 2026-04-14.
+The baseline is immutable; subsequent changes require a new tag.
+.Sh CHANGE CONTROL
+.Ss Process
+.Bl -enum
+.It
+Changes are proposed as Git commits on a branch.
+.It
+The
+.Sy CODEOWNERS
+file assigns review authority to
+.Em @denzuko
+for all paths.
+.It
+Branch protection on
+.Sy main
+requires:
+.Bl -bullet -compact
+.It
+One approving review from a code owner.
+.It
+Stale review dismissal on new commits.
+.It
+No force-push.
+.It
+Linear history
+.Pq no merge commits .
+.It
+Conversation resolution before merge.
+.El
+.It
+After merge, a new tag is created if the change warrants a release.
+Security artifact regeneration
+.Pq Nm sbom.json , Nm podcast_mgr.sarif
+is required before tagging.
+.El
+.Ss Emergency Changes
+The single-owner model means the owner may commit directly to
+.Sy main
+for critical fixes, bypassing review.
+Any such commit shall be documented in
+.Pa CHANGELOG.md
+under the next release with the note
+.Dq "emergency fix \(em bypassed review" .
+.Sh STATUS ACCOUNTING
+The current status of all configuration items is recorded by:
+.Bl -bullet -compact
+.It
+Git commit history
+.Pq Ic git log
+for change chronology.
+.It
+Git tags
+.Pq Ic git tag -l
+for release baselines.
+.It
+.Pa CHANGELOG.md
+for human-readable change summaries.
+.It
+.Pa sbom.json
+for the current component inventory.
+.El
+.Sh CONFIGURATION AUDITS
+.Ss Functional Configuration Audit
+Performed before each release tag.
+Confirms that:
+.Bl -enum -compact
+.It
+.Nm index.cgi
+builds from
+.Nm nob.c
+without error.
+.It
+cppcheck reports zero findings.
+.It
+OSV CVE scan reports zero findings.
+.It
+.Pa sbom.json
+and
+.Pa podcast_mgr.sarif
+reflect the current source.
+.It
+.Pa CHANGELOG.md
+documents all changes since the previous tag.
+.El
+.Ss Physical Configuration Audit
+Confirms that the tagged commit contains exactly the files listed in
+the
+.Sx CONFIGURATION ITEMS
+table and no others outside
+.Pa .githooks/
+and
+.Pa .gitignore .
+.Sh TOOLS
+.Bl -tag -width "mandoc"
+.It Xr git 1
+Version control, branching, tagging.
+.It Nm gh
+GitHub CLI for repository management, branch protection, release
+creation.
+.It Nm cdxgen
+CycloneDX SBOM generation.
+.It Nm cppcheck
+Static analysis; produces SARIF input.
+.It Nm mandoc
+Manpage rendering and lint.
+.El
+.Sh SEE ALSO
+.Xr git 1 ,
+.Xr podcast-mgr.ieee829 7 ,
+.Xr podcast-mgr.iso12207 7 ,
+.Xr index.cgi 8
+.Sh STANDARDS
+ISO 10007:2003
+.Em Quality management systems \(em Guidelines for configuration management .
+.Sh AUTHORS
+.An Dwight Spencer Aq Mt denzuko@dapla.net

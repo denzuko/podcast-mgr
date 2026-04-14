@@ -1,0 +1,502 @@
+.\" podcast-mgr.ieee829.7
+.\" IEEE 829-2008 Software and System Test Documentation
+.\" Dwight Spencer <denzuko@dapla.net>
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd April 14, 2026
+.Dt PODCAST-MGR.IEEE829 7
+.Os
+.Sh NAME
+.Nm podcast-mgr.ieee829
+.Nd test documentation per IEEE 829-2008
+.Sh DESCRIPTION
+This document provides the software test documentation for
+.Nm podcast-mgr
+version 1.0 in accordance with IEEE 829-2008
+.Em Standard for Software and System Test Documentation .
+.Pp
+Sections correspond to the IEEE 829 document types:
+test plan, test design specification, test case specification,
+test procedure specification, test log, test incident report, and
+test summary report.
+.Sh TEST PLAN (IEEE 829 \(sc 5.2)
+.Ss Test Plan Identifier
+TP-PODCAST-MGR-1.0
+.Ss Introduction
+This plan covers verification of
+.Nm podcast-mgr
+v1.0 consisting of
+.Nm index.cgi
+.Pq FastCGI worker
+and
+.Nm podcast.sh
+.Pq tcsh cron script .
+Testing is performed by the sole developer prior to release tagging.
+No automated test harness exists; verification is a combination of
+static analysis, manual functional testing, and dependency CVE scanning.
+.Ss Test Items
+.Bl -bullet -compact
+.It
+.Pa main.c
+\(em compiled to
+.Pa index.cgi
+.It
+.Pa sandbox.h
+.It
+.Pa podcast.sh
+.It
+.Pa feeds.xsd
+.El
+.Ss Features to be Tested
+.Bl -tag -width "FT-06"
+.It Sy FT-01
+HTTP route dispatch and method enforcement.
+.It Sy FT-02
+Feed subscription CRUD via the web UI.
+.It Sy FT-03
+Atomic write and rollback on
+.Pa feeds.xml .
+.It Sy FT-04
+Field validation: presence, length, and enumerated value constraints.
+.It Sy FT-05
+XML load: symlink rejection, regular-file check, size cap.
+.It Sy FT-06
+Static analysis: absence of CWE-classified defects.
+.It Sy FT-07
+Dependency CVE status.
+.It Sy FT-08
+.Pa podcast.sh
+schedule filtering and episode download.
+.El
+.Ss Features Not to be Tested
+.Bl -bullet -compact
+.It
+Browser rendering and JavaScript behaviour of htmx.
+.It
+HTTP server (nginx/lighttpd) configuration.
+.It
+Network availability of RSS feed URLs.
+.It
+Sandbox kernel enforcement (requires the target platform kernel).
+.El
+.Ss Approach
+Static analysis is the primary verification method.
+Manual functional testing is performed by the developer in a local
+FastCGI environment.
+CVE scanning is automated via OSV batch API query against the SBOM.
+.Ss Pass/Fail Criteria
+.Bl -bullet -compact
+.It
+cppcheck reports zero findings of severity error, warning, or style.
+.It
+OSV CVE scan reports zero findings against all versioned components.
+.It
+All manual test cases execute without unexpected errors.
+.It
+.Pa feeds.xml
+written by
+.Nm index.cgi
+validates against
+.Pa feeds.xsd .
+.El
+.Ss Suspension and Resumption
+Testing is suspended if cppcheck reports any error-severity finding.
+The finding must be resolved before manual testing proceeds.
+.Ss Test Deliverables
+.Bl -bullet -compact
+.It
+.Pa sbom.json
+\(em component inventory.
+.It
+.Pa podcast_mgr.sarif
+\(em static analysis and CVE scan results.
+.It
+This document
+.Pq Pa podcast-mgr.ieee829.7 .
+.El
+.Ss Schedule
+All testing is performed in a single session prior to tagging
+.Sy v1.0 .
+Estimated duration: two hours.
+.Ss Risks
+Single-operator testing has no independent review.
+Risk is mitigated by automated static analysis and CVE scanning.
+.Sh TEST DESIGN SPECIFICATION (IEEE 829 \(sc 5.4)
+.Ss Test Design Identifier
+TD-PODCAST-MGR-1.0
+.Ss Features to be Tested
+All features listed in
+.Sx TEST PLAN ,
+subsection
+.Sx Features to be Tested .
+.Ss Approach Refinements
+.Bl -tag -width "Static"
+.It Static
+cppcheck with
+.Fl -enable=all ,
+.Fl -std=c11 ,
+missing-include suppressed.
+SARIF output captured to
+.Pa podcast_mgr.sarif .
+.It CVE
+OSV
+.Pa /v1/querybatch
+endpoint called with all PURL-identified versioned components from
+.Pa sbom.json .
+Results embedded in
+.Pa podcast_mgr.sarif .
+.It Manual
+Developer loads the SPA in a browser connected to a running FastCGI
+worker.
+Each test case is executed in sequence.
+Pass/fail is recorded by observation.
+.El
+.Sh TEST CASE SPECIFICATION (IEEE 829 \(sc 5.5)
+.Ss TC-01 \(em Route dispatch: valid GET
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic GET /podcast/index.cgi/list
+.It Expected
+HTTP 200, Content-Type text/html, non-empty body containing card list
+or empty-state Add Feed button.
+.It Pass criterion
+Response body contains
+.Li hx-get
+attributes referencing
+.Li /edit
+and
+.Li /delete
+routes.
+.El
+.Ss TC-02 \(em Route dispatch: wrong method
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic GET /podcast/index.cgi/save
+with title, url, scope, day, pull_time query parameters.
+.It Expected
+HTTP 200, error partial containing
+.Dq Method not allowed.
+.It Pass criterion
+No entry is added to the in-memory database.
+.El
+.Ss TC-03 \(em Add subscription: valid
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic POST /podcast/index.cgi/save
+with fields:
+title=\(lqTest Feed\(rq,
+url=\(lqhttps://example.com/feed.rss\(rq,
+scope=\(lqlatest\(rq,
+day=\(lqDaily\(rq,
+pull_time=\(lq06\(rq.
+.It Expected
+HTTP 200, list partial containing the new card.
+.Pa feeds.xml
+updated with the new entry.
+.It Pass criterion
+.Ic xmlstarlet val -e -s feeds.xsd feeds.xml
+exits 0.
+.El
+.Ss TC-04 \(em Add subscription: missing field
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic POST /podcast/index.cgi/save
+with
+.Va url
+omitted.
+.It Expected
+HTTP 200, error partial containing
+.Dq Required field is missing.
+.It Pass criterion
+.Pa feeds.xml
+is not modified.
+.El
+.Ss TC-05 \(em Add subscription: field too long
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic POST /podcast/index.cgi/save
+with
+.Va title
+set to 257 bytes.
+.It Expected
+HTTP 200, error partial containing
+.Dq A field value is too long.
+.It Pass criterion
+.Pa feeds.xml
+is not modified.
+.El
+.Ss TC-06 \(em Add subscription: invalid enum value
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic POST /podcast/index.cgi/save
+with
+.Va scope=invalid .
+.It Expected
+HTTP 200, error partial containing
+.Dq Invalid value for constrained field.
+.It Pass criterion
+.Pa feeds.xml
+is not modified.
+.El
+.Ss TC-07 \(em Edit subscription: round-trip
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic GET /podcast/index.cgi/edit?id=0
+followed by
+.Ic POST /podcast/index.cgi/save
+with
+.Va id=0
+and modified title.
+.It Expected
+Edit form pre-filled with existing values.
+After save, card shows updated title.
+.It Pass criterion
+.Pa feeds.xml
+contains updated title at position 0.
+.El
+.Ss TC-08 \(em Delete subscription
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic POST /podcast/index.cgi/delete?id=0 .
+.It Expected
+HTTP 200, list partial without the deleted card.
+.It Pass criterion
+.Pa feeds.xml
+does not contain the deleted entry.
+.Ic xmlstarlet val
+exits 0.
+.El
+.Ss TC-09 \(em Edit non-existent id
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic GET /podcast/index.cgi/edit?id=99999 .
+.It Expected
+HTTP 200, error partial containing
+.Dq Entry not found.
+.It Pass criterion
+No crash; worker continues accepting requests.
+.El
+.Ss TC-10 \(em feeds.xml atomic write: disk-full simulation
+.Bl -tag -width "Expected" -compact
+.It Input
+Fill filesystem to near-capacity.
+Attempt
+.Ic POST /podcast/index.cgi/save
+with valid fields.
+.It Expected
+HTTP 200, error partial containing
+.Dq Failed to write feeds.xml.
+.It Pass criterion
+Original
+.Pa feeds.xml
+is unmodified.
+.Pa feeds.xml.tmp
+does not exist after the failed write.
+.El
+.Ss TC-11 \(em feeds.xml load: symlink rejection
+.Bl -tag -width "Expected" -compact
+.It Input
+Replace
+.Pa feeds.xml
+with a symlink before starting the worker.
+.It Expected
+Worker exits with status 1 at startup; does not follow the symlink.
+.It Pass criterion
+Worker process terminates; HTTP server logs a FastCGI backend failure.
+.El
+.Ss TC-12 \(em Static analysis
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic cppcheck --enable=all --std=c11 main.c
+.It Expected
+Zero findings of severity error, warning, or style.
+.It Pass criterion
+cppcheck XML output contains no
+.Li <error>
+elements with severity other than
+.Li information .
+.El
+.Ss TC-13 \(em CVE scan
+.Bl -tag -width "Expected" -compact
+.It Input
+OSV
+.Pa /v1/querybatch
+with all PURL-identified versioned components from
+.Pa sbom.json .
+.It Expected
+Zero vulnerabilities returned for any component.
+.It Pass criterion
+All
+.Li results[]
+entries have empty
+.Li vulns[]
+arrays.
+.El
+.Ss TC-14 \(em podcast.sh: schedule filter
+.Bl -tag -width "Expected" -compact
+.It Input
+Run
+.Ic podcast.sh -v
+at a time not matching any feed's day/pull_time.
+.It Expected
+Output contains
+.Dq No podcasts scheduled for this time slot.\&
+No files downloaded.
+.It Pass criterion
+.Va $DEST_DIR
+is unchanged.
+.El
+.Ss TC-15 \(em podcast.sh: force flag
+.Bl -tag -width "Expected" -compact
+.It Input
+.Ic podcast.sh -v -f -t \(lqTest Feed\(rq
+against a feed with
+.Va scope=latest .
+.It Expected
+One episode file created in
+.Va $DEST_DIR .
+Filename matches
+.Li TestFeed_YYYY-MM-DD_*.mp3 .
+.It Pass criterion
+File exists and is non-zero bytes.
+.El
+.Sh TEST PROCEDURE SPECIFICATION (IEEE 829 \(sc 5.6)
+.Ss TP-STATIC \(em Static analysis procedure
+.Bl -enum -compact
+.It
+From the repository root:
+.Dl cppcheck --enable=all --std=c11 --suppress=missingInclude --suppress=missingIncludeSystem --xml main.c 2>cppcheck.xml
+.It
+Inspect
+.Pa cppcheck.xml
+for
+.Li <error>
+elements.
+.It
+Record result in test log.
+.El
+.Ss TP-CVE \(em CVE scan procedure
+.Bl -enum -compact
+.It
+Generate SBOM:
+.Dl cdxgen -t c . -o sbom.json
+.It
+Submit PURL list to OSV
+.Pa /v1/querybatch .
+.It
+Record all
+.Li vulns[]
+entries in test log.
+.El
+.Ss TP-MANUAL \(em Manual test procedure
+.Bl -enum -compact
+.It
+Build:
+.Dl cc -o nob nob.c && ./nob
+.It
+Start worker:
+.Dl spawn-fcgi -p 9000 ./index.cgi
+.It
+Configure HTTP server to proxy
+.Pa /podcast/
+to port 9000.
+.It
+Execute TC-01 through TC-11 in sequence using a browser and
+.Xr curl 1 .
+.It
+Record pass/fail for each case.
+.El
+.Sh TEST LOG (IEEE 829 \(sc 5.8)
+.Ss TL-1.0 \(em Version 1.0 test execution
+.Bl -tag -width "2026-04-14"
+.It 2026-04-14
+Static analysis
+.Pq TC-12 :
+cppcheck 2.13.0, 106 active checkers.
+Initial run: 2 findings (constVariablePointer CWE-398, lines 405 and
+841).
+Both fixed by adding
+.Vt const
+qualifier to
+.Vt struct kpair *kp
+declarations.
+Re-run: 0 findings.
+Result:
+.Sy PASS .
+.It 2026-04-14
+CVE scan
+.Pq TC-13 :
+OSV batch query against 6 versioned components.
+0 vulnerabilities returned.
+Result:
+.Sy PASS .
+.It 2026-04-14
+TC-01 through TC-11: executed manually against local FastCGI deployment.
+TC-10 (disk-full) tested by reducing filesystem quota.
+All cases:
+.Sy PASS .
+.It 2026-04-14
+TC-14, TC-15: executed against a test
+.Pa feeds.xml
+with known feed URLs.
+Both cases:
+.Sy PASS .
+.El
+.Sh TEST INCIDENT REPORT (IEEE 829 \(sc 5.9)
+.Ss TIR-01 \(em constVariablePointer (resolved)
+.Bl -tag -width "Resolution" -compact
+.It Date
+2026-04-14
+.It Severity
+Style (CWE-398)
+.It Location
+.Pa main.c
+lines 405 and 841
+.It Description
+.Vt struct kpair *kp
+declared as a mutable pointer in two locations where the pointed-to
+value is never modified.
+.It Resolution
+Declarations changed to
+.Vt const struct kpair *kp .
+cppcheck re-run confirmed 0 findings.
+.It Status
+Closed.
+.El
+.Sh TEST SUMMARY REPORT (IEEE 829 \(sc 5.10)
+.Ss TSR-1.0 \(em Version 1.0 test summary
+.Bl -tag -width "Incidents"
+.It Sy Period
+2026-04-14
+.It Sy Environment
+Ubuntu 24.04 LTS, cppcheck 2.13.0, cdxgen 12.1.5, OSV API v1.
+.It Sy Test cases defined
+15
+.Pq TC-01 through TC-15
+.It Sy Test cases executed
+15
+.It Sy Pass
+15
+.It Sy Fail
+0
+.It Sy Blocked
+0
+.It Sy Incidents raised
+1
+.Pq TIR-01
+.It Sy Incidents resolved
+1
+.It Sy Incidents open
+0
+.It Sy Recommendation
+Version 1.0 is verified and approved for release.
+.El
+.Sh SEE ALSO
+.Xr podcast-mgr.iso10007 7 ,
+.Xr podcast-mgr.iso12207 7 ,
+.Xr index.cgi 8
+.Sh STANDARDS
+IEEE 829-2008
+.Em Standard for Software and System Test Documentation .
+.Sh AUTHORS
+.An Dwight Spencer Aq Mt denzuko@dapla.net

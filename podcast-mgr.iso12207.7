@@ -1,0 +1,262 @@
+.\" podcast-mgr.iso12207.7
+.\" ISO/IEC/IEEE 12207:2017 Software Lifecycle Process Documentation
+.\" Dwight Spencer <denzuko@dapla.net>
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd April 14, 2026
+.Dt PODCAST-MGR.ISO12207 7
+.Os
+.Sh NAME
+.Nm podcast-mgr.iso12207
+.Nd software lifecycle process record per ISO/IEC/IEEE 12207:2017
+.Sh DESCRIPTION
+This document records the software lifecycle processes applied to
+.Nm podcast-mgr
+version 1.0 in accordance with ISO/IEC/IEEE 12207:2017
+.Em Systems and software engineering \(em Software life cycle processes .
+.Pp
+.Nm podcast-mgr
+is a two-component system:
+.Bl -tag -width "podcast.sh"
+.It Nm index.cgi
+A FastCGI single-page application that manages a podcast subscription
+database stored as
+.Pa feeds.xml .
+.It Nm podcast.sh
+A tcsh cron script that reads
+.Pa feeds.xml
+and downloads podcast episodes according to the schedule defined therein.
+.El
+.Pp
+The components are intentionally decoupled.
+.Nm index.cgi
+writes; the cron job reads.
+.Sh STAKEHOLDER NEEDS AND REQUIREMENTS (6.4.1)
+.Ss Context
+Single operator.
+Local-network deployment on a POSIX host running a FastCGI-capable
+HTTP server.
+No internet-exposed surface.
+No multi-user access.
+.Ss Needs
+.Bl -enum
+.It
+The operator shall be able to add, edit, and remove podcast feed
+subscriptions through a web browser without editing XML by hand.
+.It
+The subscription database shall be consumed by a scheduled cron job
+without operator intervention.
+.It
+The system shall not perform any network I/O itself; downloads are
+delegated to
+.Nm podcast.sh .
+.It
+The system shall preserve
+.Pa feeds.xml
+integrity across write failures.
+.It
+The system shall not require installation of a runtime interpreter or
+virtual machine.
+.El
+.Sh SYSTEM REQUIREMENTS (6.4.2)
+.Bl -tag -width "SYS-05"
+.It Sy SYS-01
+The system shall parse
+.Pa feeds.xml
+at worker startup and hold the subscription list in memory for the
+worker lifetime.
+.It Sy SYS-02
+The system shall validate all form submissions against the field
+constraints defined in
+.Pa feeds.xsd
+before writing.
+.It Sy SYS-03
+Writes to
+.Pa feeds.xml
+shall be atomic: a temporary file shall be written and renamed over
+the target; the original shall be untouched on any failure.
+.It Sy SYS-04
+The system shall reject
+.Pa feeds.xml
+if it is a symbolic link, not a regular file, or exceeds 512\ KB.
+.It Sy SYS-05
+The worker process shall reduce its privilege after startup using the
+platform-appropriate sandboxing mechanism
+.Pq seccomp, Capsicum, or pledge .
+.It Sy SYS-06
+The build shall require only a C compiler and the kcgi library;
+no interpreted language runtime shall be required at build or run time.
+.El
+.Sh SOFTWARE REQUIREMENTS (6.4.3)
+.Bl -tag -width "SWR-10"
+.It Sy SWR-01
+.Nm index.cgi
+shall implement the routes defined in
+.Xr index.cgi 8 ,
+section
+.Sx ROUTES .
+.It Sy SWR-02
+All htmx partial responses shall be generated via
+.Fn kxml ;
+the SPA root document shall be generated via
+.Fn khtml .
+.It Sy SWR-03
+The field definition table
+.Vt FieldDef FIELDS[]
+shall be the single source of truth for XML attribute names, form
+labels, input types, length caps, and enumerated option lists.
+.It Sy SWR-04
+String views pointing into kcgi request memory shall be arena-copied
+before
+.Fn khttp_free
+is called.
+.It Sy SWR-05
+.Nm xml_node_serialize
+shall not be called; output shall be constructed via
+.Vt XMLString
+directly to avoid the self-closing node serialisation defect in
+mrvladus/xml.h.
+.It Sy SWR-06
+.Nm podcast.sh
+shall validate
+.Pa feeds.xml
+against
+.Pa feeds.xsd
+using
+.Xr xmlstarlet 1
+before processing any feeds.
+.It Sy SWR-07
+.Nm podcast.sh
+shall initialise
+.Va temp_files
+as an empty list
+.Pq Li "set temp_files = ()"
+to prevent phantom elements in the cleanup loop.
+.It Sy SWR-08
+The exit paths in
+.Fn main
+shall use a single
+.Ic goto
+label with a NULL-guarded
+.Fn khttp_fcgi_free
+call.
+.El
+.Sh SOFTWARE ARCHITECTURE (6.4.5)
+.Ss Process Model
+.Nm index.cgi
+operates as a persistent FastCGI worker.
+One worker process services all requests sequentially.
+The process lifecycle is:
+.Bl -enum -compact
+.It
+Load and validate
+.Pa feeds.xml
+into the root arena.
+.It
+Call
+.Fn sandbox_lockdown_rw
+to reduce privilege.
+.It
+Enter the
+.Fn khttp_fcgi_parse
+accept loop.
+.It
+Dispatch each request by page enum; render response; call
+.Fn khttp_free .
+.It
+On loop exit, free fcgi handle and destroy arena.
+.El
+.Ss Memory Model
+All worker-lifetime allocations use a single 4\ MB root arena.
+Per-request string copies from kcgi fieldmap are also placed in this
+arena.
+The arena is never reset between requests; it grows monotonically and
+is destroyed on process exit.
+xml.h heap allocations (from
+.Fn xml_parse_string )
+are freed via
+.Fn xml_node_free
+after attribute strings are copied into the arena.
+.Ss Data Flow
+.Bl -enum -compact
+.It
+Browser sends GET or POST to nginx/lighttpd FastCGI proxy.
+.It
+kcgi parses request; populates
+.Vt struct kreq .
+.It
+Route dispatch selects handler.
+.It
+Mutating handlers update in-memory
+.Vt PodcastArray ,
+call
+.Fn write_feeds_xml ,
+then render the updated list partial.
+.It
+On write failure, in-memory state is restored from a pre-mutation
+snapshot.
+.El
+.Ss Component Dependencies
+.Bl -tag -width "mrvladus/xml.h"
+.It kcgi
+FastCGI framing, field parsing, HTML/XML output.
+.It mrvladus/xml.h
+XML parse on startup only.
+.It tsoding/sv
+String view type used for all in-memory attribute storage.
+.It arena.h
+Region allocator; caller-supplied.
+.It sandbox.h
+Platform-dispatch privilege-drop; caller-supplied.
+.El
+.Sh VERIFICATION (6.4.8)
+Verification evidence is recorded in two machine-readable artefacts
+committed to the repository:
+.Bl -tag -width "podcast_mgr.sarif"
+.It Pa sbom.json
+CycloneDX 1.6 Software Bill of Materials generated by cdxgen 12.1.5.
+Lists 15 components: 6 versioned system libraries and 9 header
+dependencies.
+.It Pa podcast_mgr.sarif
+SARIF 2.1.0 combining:
+.Bl -bullet -compact
+.It
+cppcheck 2.13.0 static analysis \(em 0 findings.
+.It
+OSV CVE batch query \(em 0 findings across all versioned components.
+.El
+.El
+.Pp
+See
+.Xr podcast-mgr.ieee829 7
+for the full test plan and test summary.
+.Sh CONFIGURATION MANAGEMENT (6.3.5)
+See
+.Xr podcast-mgr.iso10007 7 .
+.Sh TRANSITION (6.4.10)
+Deployment consists of:
+.Bl -enum -compact
+.It
+Clone repository and run
+.Ic git config core.hooksPath .githooks .
+The post-checkout hook builds
+.Nm index.cgi
+automatically.
+.It
+Configure the HTTP server to pass requests under
+.Pa /podcast/
+to the FastCGI socket bound to
+.Nm index.cgi .
+.It
+Install the cron entry:
+.Dl 0 0 * * * /path/to/podcast.sh --playlist
+.El
+.Sh SEE ALSO
+.Xr podcast-mgr.ieee829 7 ,
+.Xr podcast-mgr.iso10007 7 ,
+.Xr index.cgi 8
+.Sh STANDARDS
+ISO/IEC/IEEE 12207:2017
+.Em Systems and software engineering \(em Software life cycle processes .
+.Sh AUTHORS
+.An Dwight Spencer Aq Mt denzuko@dapla.net
