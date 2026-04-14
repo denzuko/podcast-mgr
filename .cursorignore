@@ -1,0 +1,23 @@
+# .cursorignore — files Cursor AI should exclude from indexing
+
+# Security artefacts — large JSON, stale after any source change
+sbom.json
+podcast_mgr.sarif
+
+# Build output
+nob
+index.cgi
+*.o
+test_main
+
+# Runtime state
+feeds.xml.tmp
+
+# Vendored headers — indexed separately at their upstream repos
+xml.h
+sv.h
+
+# Editor/OS noise
+*.swp
+*~
+.DS_Store

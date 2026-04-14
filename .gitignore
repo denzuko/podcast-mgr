@@ -11,3 +11,17 @@ index.cgi
 # Runtime artefacts
 feeds.xml.tmp
 test_main
+
+# Test build headers (fetched at test-build time, not committed... 
+# actually they ARE committed as vendored deps — keep blank here)
+
+# macOS extended attributes
+.DS_Store
+._*
+
+# Vim/Emacs
+*.swp
+*.swo
+*~
+\#*\#
+.#*

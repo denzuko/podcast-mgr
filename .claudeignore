@@ -1,0 +1,27 @@
+# .claudeignore — files Claude should not read or surface in context
+#
+# Excludes security artefacts (contain version/CVE data that should be
+# regenerated, not relied on as current), build output, runtime state,
+# and vendored deps that have their own upstream context.
+
+# Security artefacts — regenerate before use, do not treat as authoritative
+sbom.json
+podcast_mgr.sarif
+
+# Build output
+nob
+index.cgi
+*.o
+test_main
+
+# Runtime state
+feeds.xml.tmp
+
+# Vendored headers — read upstream source instead
+xml.h
+sv.h
+
+# Editor/OS noise
+*.swp
+*~
+.DS_Store
