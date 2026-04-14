@@ -108,3 +108,14 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - cppcheck 2.13.0 (main.c only): 0 findings post-fix.
 - OSV CVE scan: 0 findings across 8 versioned components.
+
+### Added
+
+- `vex.cdx.json` — CycloneDX 1.6 VEX document. 12 not_affected statements
+  for CVEs matched against build-host dependencies (libc6-dev, libglib2.0-dev,
+  libpython3.12-dev, linux-libc-dev) by NVD CPE. Four justification categories:
+  (1) glibc APIs not called (iconv, glob, nscd, crypt) — confirmed by cflow.txt;
+  (2) libglib2.0-dev not linked at runtime — link flags are -lkcgixml -lkhtml -lkcgi -lz only;
+  (3) libpython3.12-dev is a build-host header dep — no Python runtime shipped;
+  (4) linux-libc-dev NVD CPE false positive (wu-ftpd CVE matched against kernel headers).
+  Document linked to SBOM via sbom-serial property.

@@ -77,3 +77,5 @@ Each release includes:
   analysis + OSV CVE scan)
 
 Both are regenerated before each release tag.
+- `vex.cdx.json` — CycloneDX 1.6 VEX document with exploitability statements
+  for all CVEs matched against build-host dependencies by NVD CPE query.

@@ -44,6 +44,7 @@ Interactive repository diagram: https://gitdiagram.com/denzuko/podcast-mgr
 | `cflow.txt` | cflow static call graph |
 | `sbom.json` | CycloneDX 1.6 Software Bill of Materials |
 | `podcast_mgr.sarif` | SARIF 2.1.0 — cppcheck + OSV CVE scan results |
+| `vex.cdx.json` | CycloneDX 1.6 VEX — 12 not_affected statements |
 
 ## Documentation
 

@@ -1,0 +1,432 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:38156b0d-4575-4a3a-9d82-95dcd5985ef5",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-04-14T04:23:55Z",
+    "component": {
+      "type": "application",
+      "name": "podcast-mgr",
+      "version": "1.0",
+      "purl": "pkg:generic/podcast-mgr@1.0",
+      "bom-ref": "pkg:generic/podcast-mgr@1.0"
+    },
+    "authors": [
+      {
+        "name": "Dwight Spencer",
+        "email": "denzuko@dapla.net"
+      }
+    ],
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "manual-analysis",
+          "version": "1.0",
+          "description": "Manual code review + NVD CPE query + cflow static call graph analysis"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "vex:sbom-serial",
+        "value": "urn:uuid:8ef56de1-6cc2-4262-990e-5e406dbb6976"
+      },
+      {
+        "name": "vex:sbom-version",
+        "value": "1"
+      },
+      {
+        "name": "vex:analysis-method",
+        "value": "NVD CPE query; cflow.txt call graph; nob.c link flags; source grep"
+      }
+    ]
+  },
+  "vulnerabilities": [
+    {
+      "id": "CVE-2024-2961",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-2961"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 7.3,
+          "severity": "high",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:C/C:H/I:L/A:L"
+        }
+      ],
+      "description": "glibc iconv() output buffer overflow in versions <= 2.39",
+      "affects": [
+        {
+          "ref": "pkg:deb/libc6-dev@2.39-0ubuntu8.7#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "podcast-mgr (index.cgi) does not call iconv() anywhere in its codebase. Confirmed by source inspection of main.c and the cflow.txt static call graph: iconv is not reachable from any execution path. The libc6-dev package is a build-host dependency only; the iconv codepath is not compiled into index.cgi."
+      }
+    },
+    {
+      "id": "CVE-2024-33599",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-33599"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 8.1,
+          "severity": "high",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        }
+      ],
+      "description": "nscd stack-based buffer overflow in netgroup cache",
+      "affects": [
+        {
+          "ref": "pkg:deb/libc6-dev@2.39-0ubuntu8.7#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "Affects nscd (Name Service Cache Daemon), a separate setuid helper daemon not shipped with podcast-mgr. index.cgi does not invoke nscd, does not link against it, and does not use any netgroup or NIS APIs. The vulnerability requires a running nscd process with a poisoned cache, which is outside the deployment scope of this single-user local-network tool."
+      }
+    },
+    {
+      "id": "CVE-2024-33600",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-33600"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 5.9,
+          "severity": "medium",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+        }
+      ],
+      "description": "nscd null pointer crash after notfound response",
+      "affects": [
+        {
+          "ref": "pkg:deb/libc6-dev@2.39-0ubuntu8.7#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "Same rationale as CVE-2024-33599. podcast-mgr does not use nscd or any netgroup/NIS APIs. The nscd daemon is not part of the podcast-mgr deployment."
+      }
+    },
+    {
+      "id": "CVE-2013-4412",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2013-4412"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 7.5,
+          "severity": "high",
+          "method": "CVSSv30",
+          "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+        }
+      ],
+      "description": "slim display manager NULL ptr dereference via glibc crypt()",
+      "affects": [
+        {
+          "ref": "pkg:deb/libc6-dev@2.39-0ubuntu8.7#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "Affects the slim display manager's use of crypt(). podcast-mgr has no authentication layer and does not call crypt() anywhere in its codebase. Confirmed by source inspection of main.c and cflow.txt."
+      }
+    },
+    {
+      "id": "CVE-2010-4756",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2010-4756"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 4.0,
+          "severity": "medium",
+          "method": "CVSSv2",
+          "vector": "AV:N/AC:L/Au:S/C:N/I:N/A:P"
+        }
+      ],
+      "description": "glibc glob() remote DoS via crafted pattern",
+      "affects": [
+        {
+          "ref": "pkg:deb/libc6-dev@2.39-0ubuntu8.7#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "podcast-mgr does not call glob() anywhere in its codebase. Confirmed by source inspection of main.c and the cflow.txt static call graph. No user-controlled input is passed to any glob API."
+      }
+    },
+    {
+      "id": "CVE-2024-52533",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-52533"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 9.8,
+          "severity": "critical",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        }
+      ],
+      "description": "GLib gsocks4aproxy.c off-by-one buffer overflow",
+      "affects": [
+        {
+          "ref": "pkg:deb/libglib2.0-dev@2.80.0-6ubuntu3.8#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "libglib2.0-dev is a system header dependency on the build host, detected by cdxgen during SBOM generation. podcast-mgr (index.cgi) does not link against libglib at runtime. Build link flags in nob.c are exclusively: -lkcgixml -lkhtml -lkcgi -lz. No GLib API is called or reachable from any podcast-mgr execution path."
+      }
+    },
+    {
+      "id": "CVE-2024-34397",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-34397"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 5.2,
+          "severity": "medium",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:L/I:L/A:L"
+        }
+      ],
+      "description": "GLib GDBus signal subscription spoofing",
+      "affects": [
+        {
+          "ref": "pkg:deb/libglib2.0-dev@2.80.0-6ubuntu3.8#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "Same rationale as CVE-2024-52533. index.cgi does not use GDBus or GLib."
+      }
+    },
+    {
+      "id": "CVE-2025-6052",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-6052"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 3.7,
+          "severity": "low",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L"
+        }
+      ],
+      "description": "GLib GString memory management flaw on string append",
+      "affects": [
+        {
+          "ref": "pkg:deb/libglib2.0-dev@2.80.0-6ubuntu3.8#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "Same rationale as CVE-2024-52533. index.cgi does not use GString or GLib."
+      }
+    },
+    {
+      "id": "CVE-2025-4056",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-4056"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 7.5,
+          "severity": "high",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+        }
+      ],
+      "description": "GLib GMainContext Windows platform DoS",
+      "affects": [
+        {
+          "ref": "pkg:deb/libglib2.0-dev@2.80.0-6ubuntu3.8#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "Same rationale as CVE-2024-52533. Additionally this CVE is Windows-platform specific; podcast-mgr targets POSIX systems (Linux/FreeBSD/OpenBSD/NetBSD) only."
+      }
+    },
+    {
+      "id": "CVE-2025-13601",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-13601"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 7.7,
+          "severity": "high",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:N/I:N/A:H"
+        }
+      ],
+      "description": "GLib heap buffer overflow in GString buffer size calculation",
+      "affects": [
+        {
+          "ref": "pkg:deb/libglib2.0-dev@2.80.0-6ubuntu3.8#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "Same rationale as CVE-2024-52533."
+      }
+    },
+    {
+      "id": "CVE-2023-27043",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-27043"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 5.3,
+          "severity": "medium",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+        }
+      ],
+      "description": "Python email module incorrectly parses addresses with special characters",
+      "affects": [
+        {
+          "ref": "pkg:deb/libpython3.12-dev@3.12.3-1ubuntu0.12#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "libpython3.12-dev is a build-host header dependency detected by cdxgen. podcast-mgr is a C program compiled to a standalone binary. It does not ship, embed, or invoke the Python runtime at any point. No Python code is executed during index.cgi or podcast.sh operation."
+      }
+    },
+    {
+      "id": "CVE-2003-1327",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2003-1327"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD"
+          },
+          "score": 0.0,
+          "severity": "none",
+          "method": "CVSSv2",
+          "vector": "AV:N/AC:L/Au:N/C:N/I:N/A:C"
+        }
+      ],
+      "description": "wu-ftpd SockPrintf buffer overflow \u2014 NVD CPE false positive",
+      "affects": [
+        {
+          "ref": "pkg:deb/linux-libc-dev@6.8.0-106.106#/var/lib/dpkg"
+        }
+      ],
+      "analysis": {
+        "state": "not_affected",
+        "justification": "component_not_present",
+        "response": [
+          "will_not_fix"
+        ],
+        "detail": "NVD CPE match against linux-libc-dev kernel headers is a false positive. This CVE affects wu-ftpd, which is entirely unrelated to podcast-mgr. linux-libc-dev provides Linux kernel UAPI headers used at compile time only; it does not ship any ftpd code or runtime."
+      }
+    }
+  ]
+}
