@@ -399,12 +399,18 @@ static int write_feeds_xml(const char *path, const PodcastArray *db) {
  * feeds.xml well-formed — not adversarial hardening.
  * ====================================================================== */
 
+static bool sv_is_blank(const char *s) {
+    if (NULL == s) return true;
+    while (*s) { if ((unsigned char)*s > ' ') return false; ++s; }
+    return true;
+}
+
 static const char *validate_fields(struct kreq *r) {
     for (size_t i = 0; i < FIELD_COUNT; ++i) {
         const FieldDef     *fd = &FIELDS[i];
         const struct kpair *kp = r->fieldmap[fd->key];
 
-        if (NULL == kp || NULL == kp->val || '\0' == kp->val[0])
+        if (NULL == kp || NULL == kp->val || sv_is_blank(kp->val))
             return "Required field is missing.";
 
         if (strlen(kp->val) > fd->maxlen)
