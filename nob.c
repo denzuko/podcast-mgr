@@ -59,6 +59,51 @@ static bool require_tool(const char *tool) {
 }
 
 /* =========================================================================
+ * kcgi_prefix — locate kcgi headers + libs at runtime
+ *
+ * Search order mirrors the conventional install hierarchy:
+ *   1. $HOME/.local   (user-local: ./configure --prefix=$HOME/.local)
+ *   2. /usr/local     (system-local: BSD ports, manual install)
+ *   3. /usr           (distro package manager fallback)
+ *
+ * Returns the first prefix where <prefix>/include/kcgi.h exists, or NULL
+ * if kcgi is not found under any of the candidates (system headers / default
+ * search path will be tried by the compiler without explicit flags).
+ * ====================================================================== */
+
+static const char *kcgi_prefix(void) {
+    static char buf[4096];
+
+    /* candidate list: $HOME/.local first, then system prefixes */
+    const char *candidates[4];
+    char home_local[2048] = {0};
+    int  n = 0;
+
+    const char *home = getenv("HOME");
+    if (NULL != home && '\0' != home[0]) {
+        snprintf(home_local, sizeof(home_local), "%s/.local", home);
+        candidates[n++] = home_local;
+    }
+    candidates[n++] = "/usr/local";
+    candidates[n++] = "/usr";
+    candidates[n]   = NULL;
+
+    for (int i = 0; i < n; ++i) {
+        snprintf(buf, sizeof(buf), "%s/include/kcgi.h", candidates[i]);
+        if (nob_file_exists(buf)) {
+            /* return the prefix, not the header path */
+            snprintf(buf, sizeof(buf), "%s", candidates[i]);
+            nob_log(NOB_INFO, "build: kcgi found at prefix %s", buf);
+            return buf;
+        }
+    }
+    nob_log(NOB_WARNING,
+            "build: kcgi.h not found under $HOME/.local, /usr/local, or /usr"
+            " — relying on compiler default search path");
+    return NULL;
+}
+
+/* =========================================================================
  * build
  * ====================================================================== */
 
@@ -68,6 +113,18 @@ static bool cmd_build(void) {
     nob_cmd_append(&cmd, "cc");
     nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c2x", "-O2");
     nob_cmd_append(&cmd, "-Isrc");
+
+    /* Inject -I<prefix>/include and -L<prefix>/lib when kcgi is installed
+     * outside the compiler's default search path (e.g. $HOME/.local or
+     * /usr/local on systems where only /usr is in the default path). */
+    const char *pfx = kcgi_prefix();
+    char inc[4096], lib[4096];
+    if (NULL != pfx) {
+        snprintf(inc, sizeof(inc), "-I%s/include", pfx);
+        snprintf(lib, sizeof(lib), "-L%s/lib",     pfx);
+        nob_cmd_append(&cmd, inc, lib);
+    }
+
     nob_cmd_append(&cmd, "-o", TARGET, "src/main.c");
     nob_cmd_append(&cmd, "-lkhtml", "-lkcgi", "-lz");
     /* nob_cmd_append(&cmd, "-lexpat"); */
@@ -148,7 +205,17 @@ static bool cmd_ast(void) {
                    "-fno-color-diagnostics",
                    "-w", "-ferror-limit=0",
                    "-D_GNU_SOURCE",
-                   "-Isrc", "-I.", "src/main.c");
+                   "-Isrc", "-I.");
+    /* Mirror kcgi_prefix so clang can resolve kcgi.h for a complete AST */
+    {
+        char ast_inc[4096];
+        const char *ast_pfx = kcgi_prefix();
+        if (NULL != ast_pfx) {
+            snprintf(ast_inc, sizeof(ast_inc), "-I%s/include", ast_pfx);
+            nob_cmd_append(&dump, ast_inc);
+        }
+    }
+    nob_cmd_append(&dump, "src/main.c");
     nob_cmd_run(&dump,
                 .stdout_path = AST_RAW,
                 .stderr_path = "/dev/null");
