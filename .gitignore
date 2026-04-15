@@ -36,3 +36,9 @@ podcast_mgr.sarif
 /tmp/podcast_mgr_*.xml
 nob_ast.json
 /tmp/podcast_mgr_nob_ast_raw.json
+
+# Deployment configs — contain host-specific paths, secrets, credentials
+# Never commit live haproxy.cfg or derived patches to this repo
+*.patch
+haproxy.cfg
+/etc/
