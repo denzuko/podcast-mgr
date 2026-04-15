@@ -295,6 +295,27 @@ static int load_feeds_xml(const char *path, Arena *a, PodcastArray *db) {
     buf[fsize] = '\0';
     fclose(fp);
 
+    /* xml.h does not handle <!DOCTYPE> internal subsets — strip any
+     * DOCTYPE declaration before parsing.  feeds.xml should never have
+     * one (write_feeds_xml does not emit it) but external editors may
+     * add it.  Find "<!DOCTYPE" and remove everything up to the closing
+     * "]>" or plain ">" so the parser sees clean XML. */
+    {
+        char *dt = strstr(buf, "<!DOCTYPE");
+        if (NULL != dt) {
+            /* Look for internal subset close "]>" first, then plain ">" */
+            char *end = strstr(dt, "]>");
+            if (NULL != end)
+                end += 2;
+            else {
+                end = strchr(dt, '>');
+                if (NULL != end) end += 1;
+            }
+            if (NULL != end)
+                memmove(dt, end, strlen(end) + 1);
+        }
+    }
+
     XMLNode *root = xml_parse_string(buf);
     if (NULL == root) return -1;
 
