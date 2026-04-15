@@ -3,22 +3,23 @@
 # Install: ~/.config/systemd/user/podcast-mgr.socket
 # Enable:  systemctl --user enable --now podcast-mgr.socket
 #
-# %t expands to $XDG_RUNTIME_DIR (/run/user/UID).
-# Directory is created automatically by RuntimeDirectory= and
-# cleaned up on logout (or never, if loginctl enable-linger is set).
+# Socket lives at /run/fcgi/podcast-mgr.sock — a shared dir created by
+# tmpfiles.d (see examples/podcast-mgr-tmpfiles.conf) with ownership
+# nuci3:www-data so haproxy (group www-data) can reach it from inside
+# its chroot without bind-mounts or XDG_RUNTIME_DIR path games.
 #
-# haproxy (system package) must be granted access to this socket.
-# See examples/fcgiwrap.conf — "Socket permission bridge" section.
+# One-time root setup before enabling this unit:
+#   sudo cp examples/podcast-mgr-tmpfiles.conf /etc/tmpfiles.d/podcast-mgr.conf
+#   sudo systemd-tmpfiles --create /etc/tmpfiles.d/podcast-mgr.conf
 
 [Unit]
 Description=podcast-mgr fcgiwrap FastCGI socket
 
 [Socket]
-ListenStream=%t/podcast-mgr/fcgi.sock
+ListenStream=/run/fcgi/podcast-mgr.sock
 SocketMode=0660
-DirectoryMode=0750
-RuntimeDirectory=podcast-mgr
-RuntimeDirectoryMode=0750
+SocketUser=nuci3
+SocketGroup=www-data
 
 [Install]
 WantedBy=sockets.target

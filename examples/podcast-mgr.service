@@ -2,14 +2,13 @@
 #
 # Install: ~/.config/systemd/user/podcast-mgr.service
 # Enable:  systemctl --user enable --now podcast-mgr.socket
-#          (enabling the socket is sufficient; the service activates on demand)
+#          (enabling the socket is sufficient; service activates on demand)
 #
-# %t  = $XDG_RUNTIME_DIR  (/run/user/UID)
-# %h  = $HOME             (/home/nuci3)
+# %h  = $HOME (/home/nuci3)
 #
 # index.cgi calls getenv("HOME") via resolve_config_path() to locate
-# ~/.config/podcasts/feeds.xml.  The Environment= line below ensures
-# HOME is set correctly even when the unit starts without a login session
+# ~/.config/podcasts/feeds.xml. The Environment= line ensures HOME is
+# set correctly when the unit starts without a login session
 # (i.e. after loginctl enable-linger).
 
 [Unit]
@@ -20,19 +19,14 @@ After=podcast-mgr.socket
 [Service]
 Type=simple
 
-# fcgiwrap accepts the socket from systemd socket activation and
-# exec()s index.cgi per FastCGI request.
-# Adjust the path to index.cgi to match your build output or install location:
+# Adjust path to index.cgi to match your build/install location:
 #   Dev:  %h/podcast-mgr/index.cgi
 #   Prod: /usr/local/libexec/podcast-mgr/index.cgi
-ExecStart=/usr/bin/fcgiwrap -c 1 -f -s unix:%t/podcast-mgr/fcgi.sock
+ExecStart=/usr/bin/fcgiwrap -c 1 -f -s unix:/run/fcgi/podcast-mgr.sock
 
-# Pass HOME so index.cgi can find ~/.config/podcasts/feeds.xml
 Environment=HOME=%h
-# Uncomment to override XDG config location:
 # Environment=XDG_CONFIG_HOME=%h/.config
 
-# Restart on failure (e.g. feeds.xml missing at startup)
 Restart=on-failure
 RestartSec=5s
 
