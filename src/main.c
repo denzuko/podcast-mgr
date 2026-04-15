@@ -1,6 +1,6 @@
 /*
  * podcast-mgr/main.c  —  FastCGI SPA for managing feeds.xml
- * BCHS stack: kcgi · khtml · kcgixml · xml.h · sv.h · arena.h · sandbox.h
+ * BCHS stack: kcgi · kcgihtml · xml.h · sv.h · arena.h · sandbox.h
  *
  * Single-user local-network tool.  Guards retained are for correctness
  * (bounds checks, atomic writes, file sanity) not for adversarial threat
@@ -25,8 +25,7 @@
 #include <sys/stat.h>
 
 #include <kcgi.h>
-#include <khtml.h>
-#include <kcgixml.h>
+#include <kcgihtml.h>
 
 #define XML_H_IMPLEMENTATION
 #include "xml.h"
@@ -117,10 +116,9 @@ typedef enum {
     ATTR_TITLE, ATTR_URL, ATTR_SCOPE, ATTR_DAY, ATTR_PULL, ATTR__MAX
 } PodcastAttr;
 
-static_assert(FIELD_COUNT == ATTR__MAX,            "FIELDS/ATTR count mismatch");
-static_assert(FIELDS[ATTR_TITLE].key == KEY_TITLE, "FIELDS order");
-static_assert(FIELDS[ATTR_URL  ].key == KEY_URL,   "FIELDS order");
-static_assert(FIELDS[ATTR_PULL ].key == KEY_PULL,  "FIELDS order");
+static_assert(FIELD_COUNT == ATTR__MAX, "FIELDS/ATTR count mismatch");
+/* NOTE: FIELDS[n].key cannot be used in a static_assert (not a
+ * constant expression in C).  Equivalent checks run at start of main(). */
 
 typedef struct {
     String_View attrs[ATTR__MAX];
@@ -148,17 +146,17 @@ enum page {
 };
 
 typedef struct {
-    const char *path;
-    enum krequ  method;
+    const char  *path;
+    enum kmethod method;
 } RouteDef;
 
 static const RouteDef ROUTES[PAGE__MAX] = {
-    [PAGE_INDEX]  = { "index",  KREQU_GET  },
-    [PAGE_LIST]   = { "list",   KREQU_GET  },
-    [PAGE_ADD]    = { "add",    KREQU_GET  },
-    [PAGE_EDIT]   = { "edit",   KREQU_GET  },
-    [PAGE_SAVE]   = { "save",   KREQU_POST },
-    [PAGE_DELETE] = { "delete", KREQU_POST },
+    [PAGE_INDEX]  = { "index",  KMETHOD_GET  },
+    [PAGE_LIST]   = { "list",   KMETHOD_GET  },
+    [PAGE_ADD]    = { "add",    KMETHOD_GET  },
+    [PAGE_EDIT]   = { "edit",   KMETHOD_GET  },
+    [PAGE_SAVE]   = { "save",   KMETHOD_POST },
+    [PAGE_DELETE] = { "delete", KMETHOD_POST },
 };
 
 static const char *pages[PAGE__MAX];   /* built from ROUTES in main() */
@@ -444,24 +442,32 @@ static bool parse_id(const struct kreq *r, size_t *out) {
  * ====================================================================== */
 
 static void send_response(struct kreq *r) {
-    khttp_head(r, kreps[KRESP_STATUS], "%s", kstatusmsgs[KHTTP_200]);
-    khttp_head(r, kreps[KRESP_CONTENT_TYPE], "%s", kmimetypes[KMIME_TEXT_HTML]);
+    khttp_head(r, kresps[KRESP_STATUS], "%s", khttps[KHTTP_200]);
+    khttp_head(r, kresps[KRESP_CONTENT_TYPE], "%s", kmimetypes[KMIME_TEXT_HTML]);
     khttp_body(r);
 }
 
 /* =========================================================================
- * §13  kxml RENDER HELPERS
+ * §13  RENDER HELPERS
  *
- * All htmx partials use kxml.  khtml is used only in render_shell.
- * <input> is a void element kxml can't self-close, so those drop to
- * khttp_puts — isolated in kxml_input.
+ * All htmx partials use raw khttp_puts. khtml is used only in render_shell.
+ * kxml_input and kxml_sv_raw are khttp_puts-based helpers retained for
+ * historical naming clarity.
  * ====================================================================== */
 
-static void kxml_sv(struct kxmlreq *x, String_View sv) {
+static void kxml_sv_raw(struct kreq *r, String_View sv) {
     if (NULL != sv.data && sv.count > 0)
-        kxml_putn(x, sv.data, sv.count);
+        khttp_write(r, sv.data, sv.count);
 }
 
+/* render_notice — emit a styled <p> using raw HTTP output */
+static void render_notice(struct kreq *r, StyleKey sk, const char *msg) {
+    khttp_puts(r, "<p class=\"");
+    khttp_puts(r, CSS[sk]);
+    khttp_puts(r, "\">");
+    khttp_puts(r, msg);
+    khttp_puts(r, "</p>");
+}
 static void kxml_input(struct kreq *r, const FieldDef *fd, String_View val) {
     khttp_puts(r, "<input name=\"");
     khttp_puts(r, fd->xml_name);
@@ -483,43 +489,34 @@ static void kxml_input(struct kreq *r, const FieldDef *fd, String_View val) {
     }
     khttp_puts(r, "\">");
 }
-
-static void kxml_select(struct kxmlreq *x, const FieldDef *fd, String_View cur) {
-    kxml_pushtag(x, "select");
-    kxml_attr(x, "name",  fd->xml_name);
-    kxml_attr(x, "class", CSS[S_SELECT]);
+    khttp_puts(r, "<select name=\"");
+    khttp_puts(r, fd->xml_name);
+    khttp_puts(r, "\" class=\"");
+    khttp_puts(r, CSS[S_SELECT]);
+    khttp_puts(r, "\">");
     for (size_t i = 0; NULL != fd->opts[i]; ++i) {
-        kxml_pushtag(x, "option");
-        kxml_attr(x, "value", fd->opts[i]);
+        khttp_puts(r, "<option value=\"");
+        khttp_puts(r, fd->opts[i]);
+        khttp_puts(r, "\"");
         if (cur.data != NULL &&
             strlen(fd->opts[i]) == cur.count &&
             memcmp(fd->opts[i], cur.data, cur.count) == 0)
-            kxml_attr(x, "selected", "selected");
-        kxml_putc(x, fd->opts[i]);
-        kxml_poptag(x);
+            khttp_puts(r, " selected=\"selected\"");
+        khttp_puts(r, ">");
+        khttp_puts(r, fd->opts[i]);
+        khttp_puts(r, "</option>");
     }
-    kxml_poptag(x);
+    khttp_puts(r, "</select>");
 }
 
 /* =========================================================================
- * §14  PARTIAL RENDERERS  (kxml)
+ * §14  PARTIAL RENDERERS  (raw khttp_puts — htmx partials)
  * ====================================================================== */
-
-static void render_notice(struct kxmlreq *x, StyleKey sk, const char *msg) {
-    kxml_pushtag(x, "p");
-    kxml_attr(x, "class", CSS[sk]);
-    kxml_putc(x, msg);
-    kxml_poptag(x);
-}
 
 static void render_list(struct kreq *r, const PodcastArray *db,
                         StyleKey notice_sk, const char *notice)
 {
-    struct kxmlreq x;
-    kxml_open(&x, r, NULL, 0);
-
-    kxml_pushtag(&x, "div");
-    kxml_attr(&x, "class", "max-w-2xl mx-auto");
+    khttp_puts(r, "<div class=\"max-w-2xl mx-auto\">");
 
     for (size_t i = 0; i < db->count; ++i) {
         const PodcastComp *p = &db->items[i];
@@ -529,149 +526,118 @@ static void render_list(struct kreq *r, const PodcastArray *db,
         snprintf(edit_url, sizeof(edit_url), ROUTE("/edit?id=%zu"), i);
         snprintf(del_url,  sizeof(del_url),  ROUTE("/delete?id=%zu"), i);
 
-        kxml_pushtag(&x, "div");
-        kxml_attr(&x, "class", CSS[S_CARD]);
+        khttp_puts(r, "<div class=\""); khttp_puts(r, CSS[S_CARD]); khttp_puts(r, "\">");
 
-            kxml_pushtag(&x, "div");
-            kxml_attr(&x, "class", "min-w-0 flex-1");
+            khttp_puts(r, "<div class=\"min-w-0 flex-1\">");
 
-                kxml_pushtag(&x, "h3");
-                kxml_attr(&x, "class", CSS[S_HDR]);
-                kxml_sv(&x, p->attrs[ATTR_TITLE]);
-                kxml_poptag(&x);
+                khttp_puts(r, "<h3 class=\""); khttp_puts(r, CSS[S_HDR]); khttp_puts(r, "\">");
+                kxml_sv_raw(r, p->attrs[ATTR_TITLE]);
+                khttp_puts(r, "</h3>");
 
-                kxml_pushtag(&x, "p");
-                kxml_attr(&x, "class", CSS[S_SUB]);
-                kxml_sv(&x, p->attrs[ATTR_SCOPE]);
-                kxml_putc(&x, " \xc2\xb7 ");
-                kxml_sv(&x, p->attrs[ATTR_DAY]);
-                kxml_putc(&x, " @ ");
-                kxml_sv(&x, p->attrs[ATTR_PULL]);
-                kxml_putc(&x, ":00");
-                kxml_poptag(&x);
+                khttp_puts(r, "<p class=\""); khttp_puts(r, CSS[S_SUB]); khttp_puts(r, "\">");
+                kxml_sv_raw(r, p->attrs[ATTR_SCOPE]);
+                khttp_puts(r, " \xc2\xb7 ");
+                kxml_sv_raw(r, p->attrs[ATTR_DAY]);
+                khttp_puts(r, " @ ");
+                kxml_sv_raw(r, p->attrs[ATTR_PULL]);
+                khttp_puts(r, ":00</p>");
 
-                kxml_pushtag(&x, "p");
-                kxml_attr(&x, "class", CSS[S_URL_TEXT]);
-                kxml_sv(&x, p->attrs[ATTR_URL]);
-                kxml_poptag(&x);
+                khttp_puts(r, "<p class=\""); khttp_puts(r, CSS[S_URL_TEXT]); khttp_puts(r, "\">");
+                kxml_sv_raw(r, p->attrs[ATTR_URL]);
+                khttp_puts(r, "</p>");
 
-            kxml_poptag(&x);
+            khttp_puts(r, "</div>");
 
-            kxml_pushtag(&x, "div");
-            kxml_attr(&x, "class", "flex flex-col gap-2 shrink-0");
+            khttp_puts(r, "<div class=\"flex flex-col gap-2 shrink-0\">");
 
-                kxml_pushtag(&x, "button");
-                kxml_attr(&x, "hx-get",    edit_url);
-                kxml_attr(&x, "hx-target", "#main-content");
-                kxml_attr(&x, "class",     CSS[S_BTN_GHOST]);
-                kxml_putc(&x, "Edit");
-                kxml_poptag(&x);
+                khttp_puts(r, "<button hx-get=\"");
+                khttp_puts(r, edit_url);
+                khttp_puts(r, "\" hx-target=\"#main-content\" class=\"");
+                khttp_puts(r, CSS[S_BTN_GHOST]);
+                khttp_puts(r, "\">Edit</button>");
 
-                kxml_pushtag(&x, "button");
-                kxml_attr(&x, "hx-post",    del_url);
-                kxml_attr(&x, "hx-target",  "#main-content");
-                kxml_attr(&x, "hx-confirm", "Remove this subscription?");
-                kxml_attr(&x, "class",      CSS[S_BTN_DANGER]);
-                kxml_putc(&x, "Delete");
-                kxml_poptag(&x);
+                khttp_puts(r, "<button hx-post=\"");
+                khttp_puts(r, del_url);
+                khttp_puts(r, "\" hx-target=\"#main-content\""
+                              " hx-confirm=\"Remove this subscription?\" class=\"");
+                khttp_puts(r, CSS[S_BTN_DANGER]);
+                khttp_puts(r, "\">Delete</button>");
 
-            kxml_poptag(&x);
-        kxml_poptag(&x);
+            khttp_puts(r, "</div>");
+        khttp_puts(r, "</div>");
     }
 
-    kxml_pushtag(&x, "div");
-    kxml_attr(&x, "class", "flex justify-end mt-6");
-        kxml_pushtag(&x, "button");
-        kxml_attr(&x, "hx-get",    ROUTE("/add"));
-        kxml_attr(&x, "hx-target", "#main-content");
-        kxml_attr(&x, "class",     CSS[S_BTN_ADD]);
-        kxml_putc(&x, "+ Add Feed");
-        kxml_poptag(&x);
-    kxml_poptag(&x);
+    khttp_puts(r, "<div class=\"flex justify-end mt-6\">");
+    khttp_puts(r, "<button hx-get=\"" ROUTE("/add") "\""
+                  " hx-target=\"#main-content\" class=\"");
+    khttp_puts(r, CSS[S_BTN_ADD]);
+    khttp_puts(r, "\">+ Add Feed</button></div>");
 
-    if (NULL != notice) render_notice(&x, notice_sk, notice);
+    if (NULL != notice) render_notice(r, notice_sk, notice);
 
-    kxml_poptag(&x);
-    kxml_close(&x);
+    khttp_puts(r, "</div>");
 }
 
 static void render_form(struct kreq *r, const PodcastComp *p, size_t id) {
-    static const String_View SV_EMPTY = { NULL, 0 };
+    static const String_View SV_EMPTY = { 0, NULL };
     const bool is_edit = (NULL != p);
     char id_buf[32] = "";
     if (is_edit) snprintf(id_buf, sizeof(id_buf), "%zu", id);
 
-    struct kxmlreq x;
-    kxml_open(&x, r, NULL, 0);
+    khttp_puts(r, "<div class=\"p-8 bg-white border rounded-2xl shadow-xl"
+                  " max-w-lg mx-auto\">");
 
-    kxml_pushtag(&x, "div");
-    kxml_attr(&x, "class",
-              "p-8 bg-white border rounded-2xl shadow-xl max-w-lg mx-auto");
+    khttp_puts(r, "<h2 class=\"text-xl font-black mb-6 text-slate-900\">");
+    khttp_puts(r, is_edit ? "Edit Subscription" : "Add New Subscription");
+    khttp_puts(r, "</h2>");
 
-        kxml_pushtag(&x, "h2");
-        kxml_attr(&x, "class", "text-xl font-black mb-6 text-slate-900");
-        kxml_putc(&x, is_edit ? "Edit Subscription" : "Add New Subscription");
-        kxml_poptag(&x);
+    khttp_puts(r, "<form hx-post=\"" ROUTE("/save") "\""
+                  " hx-target=\"#main-content\" class=\"space-y-4\">");
 
-        kxml_pushtag(&x, "form");
-        kxml_attr(&x, "hx-post",   ROUTE("/save"));
-        kxml_attr(&x, "hx-target", "#main-content");
-        kxml_attr(&x, "class",     "space-y-4");
+    if (is_edit) {
+        khttp_puts(r, "<input type=\"hidden\" name=\"id\" value=\"");
+        khttp_puts(r, id_buf);
+        khttp_puts(r, "\">");
+    }
 
-            if (is_edit) {
-                khttp_puts(r, "<input type=\"hidden\" name=\"id\" value=\"");
-                khttp_puts(r, id_buf);
-                khttp_puts(r, "\">");
-            }
+    for (size_t i = 0; i < FIELD_COUNT; ++i) {
+        const FieldDef *fd  = &FIELDS[i];
+        String_View     cur = is_edit ? p->attrs[i] : SV_EMPTY;
 
-            for (size_t i = 0; i < FIELD_COUNT; ++i) {
-                const FieldDef *fd = &FIELDS[i];
-                String_View cur = is_edit ? p->attrs[i] : SV_EMPTY;
+        khttp_puts(r, "<div><label class=\"");
+        khttp_puts(r, CSS[S_LABEL]);
+        khttp_puts(r, "\">");
+        khttp_puts(r, fd->label);
+        khttp_puts(r, "</label>");
 
-                kxml_pushtag(&x, "div");
-                    kxml_pushtag(&x, "label");
-                    kxml_attr(&x, "class", CSS[S_LABEL]);
-                    kxml_putc(&x, fd->label);
-                    kxml_poptag(&x);
+        if (fd->kind == INPUT_SELECT)
+            khtml_select(r, fd, cur);
+        else
+            kxml_input(r, fd, cur);
 
-                    if (fd->kind == INPUT_SELECT)
-                        kxml_select(&x, fd, cur);
-                    else
-                        kxml_input(r, fd, cur);
+        khttp_puts(r, "</div>");
+    }
 
-                kxml_poptag(&x);
-            }
+    khttp_puts(r, "<div class=\"flex gap-3 pt-2\">");
+    khttp_puts(r, "<button type=\"submit\" class=\"");
+    khttp_puts(r, CSS[S_BTN]);
+    khttp_puts(r, "\">Save</button>");
+    khttp_puts(r, "<button type=\"button\""
+                  " hx-get=\"" ROUTE("/list") "\""
+                  " hx-target=\"#main-content\" class=\"");
+    khttp_puts(r, CSS[S_BTN_GHOST]);
+    khttp_puts(r, "\">Cancel</button>");
+    khttp_puts(r, "</div>");
 
-            kxml_pushtag(&x, "div");
-            kxml_attr(&x, "class", "flex gap-3 pt-2");
-                kxml_pushtag(&x, "button");
-                kxml_attr(&x, "type",  "submit");
-                kxml_attr(&x, "class", CSS[S_BTN]);
-                kxml_putc(&x, "Save");
-                kxml_poptag(&x);
-
-                kxml_pushtag(&x, "button");
-                kxml_attr(&x, "type",      "button");
-                kxml_attr(&x, "hx-get",    ROUTE("/list"));
-                kxml_attr(&x, "hx-target", "#main-content");
-                kxml_attr(&x, "class",     CSS[S_BTN_GHOST]);
-                kxml_putc(&x, "Cancel");
-                kxml_poptag(&x);
-            kxml_poptag(&x);
-
-        kxml_poptag(&x);
-    kxml_poptag(&x);
-    kxml_close(&x);
+    khttp_puts(r, "</form></div>");
 }
 
 static void render_error(struct kreq *r, const char *msg) {
-    struct kxmlreq x;
-    kxml_open(&x, r, NULL, 0);
-    kxml_pushtag(&x, "p");
-    kxml_attr(&x, "class", CSS[S_NOTICE_ERR]);
-    kxml_putc(&x, msg);
-    kxml_poptag(&x);
-    kxml_close(&x);
+    khttp_puts(r, "<p class=\"");
+    khttp_puts(r, CSS[S_NOTICE_ERR]);
+    khttp_puts(r, "\">");
+    khttp_puts(r, msg);
+    khttp_puts(r, "</p>");
 }
 
 /* =========================================================================
@@ -699,14 +665,12 @@ static void render_shell(struct kreq *r) {
             khtml_attr(&h, KELEM_SCRIPT,
                        KATTR_SRC, "https://cdn.tailwindcss.com", KATTR__MAX);
             khtml_closeelem(&h, 1);
-            khtml_attr(&h, KELEM_SCRIPT,
-                       KATTR_SRC, "https://unpkg.com/htmx.org@1.9.12",
-                       KATTR_INTEGRITY,
-                       "sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2uoJkU0g"
-                       "+0AP8W3yl/xV9UhFZPNqoVCbQSM",
-                       KATTR_CROSSORIGIN, "anonymous",
-                       KATTR__MAX);
-            khtml_closeelem(&h, 1);
+            /* KATTR_INTEGRITY was added in kcgi ≥ 0.13; emit it raw to stay
+             * compatible with older installs. */
+            khttp_puts(r, "<script src=\"https://unpkg.com/htmx.org@1.9.12\""
+                          " integrity=\"sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2uoJkU0g"
+                          "+0AP8W3yl/xV9UhFZPNqoVCbQSM\""
+                          " crossorigin=\"anonymous\"></script>");
         khtml_closeelem(&h, 1);
 
         khtml_attr(&h, KELEM_BODY,
@@ -775,6 +739,11 @@ static void render_shell(struct kreq *r) {
  * ====================================================================== */
 
 int main(void) {
+    /* Runtime equivalents of the removed non-constant static_asserts */
+    assert(FIELDS[ATTR_TITLE].key == KEY_TITLE && "FIELDS order: ATTR_TITLE");
+    assert(FIELDS[ATTR_URL  ].key == KEY_URL   && "FIELDS order: ATTR_URL");
+    assert(FIELDS[ATTR_PULL ].key == KEY_PULL  && "FIELDS order: ATTR_PULL");
+
     int rc = 1;
     struct kfcgi *fcgi = NULL;
     Arena arena = {0};

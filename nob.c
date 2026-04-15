@@ -69,7 +69,7 @@ static bool cmd_build(void) {
     nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c2x", "-O2");
     nob_cmd_append(&cmd, "-Isrc");
     nob_cmd_append(&cmd, "-o", TARGET, "src/main.c");
-    nob_cmd_append(&cmd, "-lkcgixml", "-lkhtml", "-lkcgi", "-lz");
+    nob_cmd_append(&cmd, "-lkhtml", "-lkcgi", "-lz");
     /* nob_cmd_append(&cmd, "-lexpat"); */
     if (!nob_cmd_run(&cmd)) return false;
     nob_log(NOB_INFO, "==> build: OK");
