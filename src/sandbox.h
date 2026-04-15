@@ -138,6 +138,7 @@ static const struct sock_filter _sc_filter_ro[] = {
     _SC_ALLOW(__NR_nanosleep),
     _SC_ALLOW(__NR_exit),
     _SC_ALLOW(__NR_exit_group),
+    _SC_ALLOW(__NR_restart_syscall),  /* kernel-internal: restart interrupted syscalls */
     _SC_ALLOW(__NR_futex),
 #ifdef __NR_futex_time64
     _SC_ALLOW(__NR_futex_time64),
@@ -248,6 +249,7 @@ static const struct sock_filter _sc_filter_rw[] = {
     _SC_ALLOW(__NR_exit),
     _SC_ALLOW(__NR_exit_group),
     _SC_ALLOW(__NR_futex),
+    _SC_ALLOW(__NR_restart_syscall),  /* kernel-internal: restart interrupted syscalls */
 #ifdef __NR_futex_time64
     _SC_ALLOW(__NR_futex_time64),
 #endif

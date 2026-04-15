@@ -203,6 +203,19 @@ Falls back gracefully
 if the kernel does not support
 .Dv SECCOMP_SET_MODE_FILTER .
 .El
+.Sh INSTALLATION
+To update a running deployment, stop the socket unit before installing
+to avoid
+.Dq Text file busy
+errors, then restart after:
+.Bd -literal -offset indent
+systemctl --user stop podcast-mgr.socket podcast-mgr.service
+./nob install
+systemctl --user start podcast-mgr.socket
+.Ed
+.Nm nob install
+only installs files; service lifecycle is the operator's
+responsibility.
 .Sh EXIT STATUS
 .Nm
 exits 0 on normal FastCGI loop termination and 1 on any startup
