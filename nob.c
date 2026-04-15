@@ -126,7 +126,7 @@ static bool cmd_build(void) {
     }
 
     nob_cmd_append(&cmd, "-o", TARGET, "src/main.c");
-    nob_cmd_append(&cmd, "-lkhtml", "-lkcgi", "-lz");
+    nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz");
     /* nob_cmd_append(&cmd, "-lexpat"); */
     if (!nob_cmd_run(&cmd)) return false;
     nob_log(NOB_INFO, "==> build: OK");
