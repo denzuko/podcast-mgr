@@ -730,7 +730,7 @@ static void render_shell(struct kreq *r) {
             khttp_puts(r, "<main id=\"main-content\""
                           " class=\"p-6 md:p-10\""
                           " hx-get=\"" ROUTE("/list") "\""
-                          " hx-trigger=\"load\"></main>");
+                          " hx-trigger=\"load once\"></main>");
 
         khtml_closeelem(&h, 1);
     khtml_closeelem(&h, 1);
