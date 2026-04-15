@@ -5,7 +5,7 @@
 #
 # Socket lives at /run/fcgi/podcast-mgr.sock — a shared dir created by
 # tmpfiles.d (see examples/podcast-mgr-tmpfiles.conf) with ownership
-# nuci3:www-data so haproxy (group www-data) can reach it from inside
+# <USER>:www-data so haproxy (group www-data) can reach it from inside
 # its chroot without bind-mounts or XDG_RUNTIME_DIR path games.
 #
 # One-time root setup before enabling this unit:
@@ -18,7 +18,7 @@ Description=podcast-mgr fcgiwrap FastCGI socket
 [Socket]
 ListenStream=/run/fcgi/podcast-mgr.sock
 SocketMode=0660
-SocketUser=nuci3
+SocketUser=<USER>
 SocketGroup=www-data
 
 [Install]

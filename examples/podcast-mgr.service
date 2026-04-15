@@ -4,7 +4,7 @@
 # Enable:  systemctl --user enable --now podcast-mgr.socket
 #          (enabling the socket is sufficient; service activates on demand)
 #
-# %h  = $HOME (/home/nuci3)
+# %h  = $HOME (/home/<USER>)
 #
 # index.cgi calls getenv("HOME") via resolve_config_path() to locate
 # ~/.config/podcasts/feeds.xml. The Environment= line ensures HOME is
