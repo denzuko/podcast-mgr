@@ -668,7 +668,6 @@ static void render_shell(struct kreq *r) {
 
     khtml_elem(&h, KELEM_DOCTYPE);
     khtml_attr(&h, KELEM_HTML, KATTR_LANG, "en", KATTR__MAX);
-
         khtml_elem(&h, KELEM_HEAD);
             khtml_attr(&h, KELEM_META, KATTR_CHARSET, "UTF-8", KATTR__MAX);
             khtml_closeelem(&h, 1);
@@ -683,60 +682,48 @@ static void render_shell(struct kreq *r) {
             khtml_attr(&h, KELEM_SCRIPT,
                        KATTR_SRC, "https://cdn.tailwindcss.com", KATTR__MAX);
             khtml_closeelem(&h, 1);
-            /* KATTR_INTEGRITY was added in kcgi ≥ 0.13; emit it raw to stay
-             * compatible with older installs. */
             khttp_puts(r, "<script src=\"https://unpkg.com/htmx.org@1.9.12\""
                           " integrity=\"sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2\""
                           " crossorigin=\"anonymous\"></script>");
             khttp_puts(r, "<script defer"
                           " src=\"https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js\""
                           "></script>");
-        khtml_closeelem(&h, 1);
-
-        khtml_attr(&h, KELEM_BODY,
-                   KATTR_CLASS,
-                   "bg-slate-50 font-sans text-slate-900 min-h-screen",
-                   KATTR__MAX);
-
-            khtml_attr(&h, KELEM_NAV,
-                       KATTR_CLASS,
-                       "sticky top-0 z-10 px-6 py-4 bg-slate-900 "
-                       "text-white flex justify-between items-center "
-                       "shadow-lg",
-                       KATTR__MAX);
-
-                khtml_attr(&h, KELEM_SPAN,
-                           KATTR_CLASS, "font-black tracking-tighter text-xl",
-                           KATTR__MAX);
-                khtml_puts(&h, "PODCAST");
-                khtml_attr(&h, KELEM_SPAN,
-                           KATTR_CLASS, "text-indigo-400", KATTR__MAX);
-                khtml_puts(&h, ".SH");
-                khtml_closeelem(&h, 2);
-
-                khtml_attr(&h, KELEM_DIV,
-                           KATTR_CLASS, "flex gap-6 text-sm font-bold",
-                           KATTR__MAX);
-                    khttp_puts(r, "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
-                                  " hx-get=\"" ROUTE("/list") "\""
-                                  " hx-target=\"#main-content\""
-                                  " hx-push-url=\"" ROUTE("/list") "\">FEEDS</a>");
-                    khttp_puts(r, "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
-                                  " hx-get=\"" ROUTE("/add") "\""
-                                  " hx-target=\"#main-content\">ADD NEW</a>");
-                khtml_closeelem(&h, 1);
-            khtml_closeelem(&h, 1);
-
-            khttp_puts(r, "<main id=\"main-content\""
-                          " class=\"p-6 md:p-10\""
-                          " hx-get=\"" ROUTE("/list") "\""
-                          " hx-trigger=\"load once\"></main>");
-
-        khtml_closeelem(&h, 1);
-    khtml_closeelem(&h, 1);
+        khtml_closeelem(&h, 1); /* </head> */
+    khtml_closeelem(&h, 1); /* </html> — closes html so khtml_close is a no-op */
     khtml_close(&h);
-}
 
+    /* Body and everything with hx-* / x-* attrs emitted raw.
+     * khtml cannot express custom attribute names so we've left its
+     * managed stack after </head>. */
+    khttp_puts(r, "<body class=\"bg-slate-50 font-sans text-slate-900 min-h-screen\">");
+
+    khttp_puts(r, "<nav class=\"sticky top-0 z-10 px-6 py-4 bg-slate-900 "
+                  "text-white flex justify-between items-center shadow-lg\">");
+
+        khttp_puts(r, "<span class=\"font-black tracking-tighter text-xl\">"
+                      "PODCAST"
+                      "<span class=\"text-indigo-400\">.SH</span>"
+                      "</span>");
+
+        khttp_puts(r, "<div class=\"flex gap-6 text-sm font-bold\">");
+            khttp_puts(r, "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
+                          " hx-get=\"" ROUTE("/list") "\""
+                          " hx-target=\"#main-content\""
+                          " hx-push-url=\"" ROUTE("/list") "\">FEEDS</a>");
+            khttp_puts(r, "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
+                          " hx-get=\"" ROUTE("/add") "\""
+                          " hx-target=\"#main-content\">ADD NEW</a>");
+        khttp_puts(r, "</div>");
+
+    khttp_puts(r, "</nav>");
+
+    khttp_puts(r, "<main id=\"main-content\""
+                  " class=\"p-6 md:p-10\""
+                  " hx-get=\"" ROUTE("/list") "\""
+                  " hx-trigger=\"load once\"></main>");
+
+    khttp_puts(r, "</body></html>");
+}
 /* =========================================================================
  * §16  MAIN / FASTCGI LOOP
  * ====================================================================== */
