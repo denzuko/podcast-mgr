@@ -686,8 +686,7 @@ static void render_shell(struct kreq *r) {
             /* KATTR_INTEGRITY was added in kcgi ≥ 0.13; emit it raw to stay
              * compatible with older installs. */
             khttp_puts(r, "<script src=\"https://unpkg.com/htmx.org@1.9.12\""
-                          " integrity=\"sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2uoJkU0g"
-                          "+0AP8W3yl/xV9UhFZPNqoVCbQSM\""
+                          " integrity=\"sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2\""
                           " crossorigin=\"anonymous\"></script>");
         khtml_closeelem(&h, 1);
 
