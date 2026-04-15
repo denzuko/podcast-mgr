@@ -31,23 +31,18 @@ renderer_functions := {fn.name |
 }
 
 # ── Rule 1: khtml/kxml split ─────────────────────────────────────────────
-# khtml calls are permitted ONLY in render_shell.
-# All other functions that touch rendering must use kxml only.
+# khtml calls are NOT permitted anywhere — render_shell uses khttp_puts
+# directly to avoid buffering/ordering issues when mixing khtml and
+# khttp_puts in the same scope.
+# All render_* functions must use kxml (except render_shell which is raw).
 
 deny contains msg if {
     some fn in input.functions
-    fn.name != "render_shell"
     count(fn.khtml_calls) > 0
     msg := sprintf(
-        "khtml violation: '%s' calls khtml functions %v — khtml is only permitted in render_shell",
+        "khtml violation: '%s' calls khtml functions %v — khtml must not be used (render_shell uses khttp_puts directly)",
         [fn.name, fn.khtml_calls]
     )
-}
-
-deny contains msg if {
-    fn := fn_by_name("render_shell")
-    count(fn.khtml_calls) == 0
-    msg := "render_shell must call at least one khtml function (khtml_open/khtml_close/etc.)"
 }
 
 # ── Rule 2: malloc isolation ─────────────────────────────────────────────

@@ -61,14 +61,13 @@ of truth for XML attribute names, form labels, input kinds, length caps,
 and enum option lists. Renderers, validators, and the serialiser all iterate
 this table. Adding a field = one row in `FIELDS[]` + one entry in `PodcastAttr`.
 
-**khtml only in `render_shell`, with caveats.** `render_shell` uses khtml
-for `<head>` where all attributes are standard `KATTR_*` enum values.
-`<body>` and its descendants are emitted via raw `khttp_puts` because
-htmx (`hx-*`) and Alpine.js (`x-*`) attributes are not in the `kattr`
-enum and cannot be expressed through `khtml_attr` or `khtml_attrx`.
-`khtml_attrx` takes `KATTR_*` enum keys with typed values (`KATTRX_STRING`,
-`KATTRX_INT`, `KATTRX_DOUBLE`) — it does not accept arbitrary string
-attribute names. Every other output function uses kxml.
+**khtml not used.** `render_shell` emits the entire SPA document via
+`khttp_puts` — no khtml calls. Mixing khtml (buffered) and `khttp_puts`
+(direct) inside the same element scope causes `</head>` to flush before
+the raw `<script>` tags, breaking document structure. Since `hx-*` and
+`x-*` attribute names cannot be expressed through khtml anyway (only
+`KATTR_*` enum values are accepted), the entire shell is raw output.
+Every other output function uses kxml.
 
 **Arena owns all strings for the worker lifetime.** `kp->val` from kcgi is
 freed by `khttp_free` at the end of each request. Any string that needs to
