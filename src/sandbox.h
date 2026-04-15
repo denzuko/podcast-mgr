@@ -176,6 +176,32 @@ static const struct sock_filter _sc_filter_ro[] = {
     _SC_ALLOW(__NR_setsockopt),
     _SC_ALLOW(__NR_getsockname),
     _SC_ALLOW(__NR_getpeername),
+    /* kcgi FastCGI spawns worker threads — allow thread-related syscalls */
+    _SC_ALLOW(__NR_clone),
+#ifdef __NR_clone3
+    _SC_ALLOW(__NR_clone3),
+#endif
+    _SC_ALLOW(__NR_set_robust_list),
+    _SC_ALLOW(__NR_sigaltstack),
+#ifdef __NR_eventfd2
+    _SC_ALLOW(__NR_eventfd2),
+#endif
+#ifdef __NR_eventfd
+    _SC_ALLOW(__NR_eventfd),
+#endif
+    _SC_ALLOW(__NR_tgkill),
+    _SC_ALLOW(__NR_tkill),
+    _SC_ALLOW(__NR_waitid),
+#ifdef __NR_wait4
+    _SC_ALLOW(__NR_wait4),
+#endif
+    _SC_ALLOW(__NR_sched_yield),
+    _SC_ALLOW(__NR_getdents64),
+    _SC_ALLOW(__NR_set_tid_address),
+    _SC_ALLOW(__NR_rseq),
+#ifdef __NR_membarrier
+    _SC_ALLOW(__NR_membarrier),
+#endif
 
     /* 4. Default: kill the process on any unlisted syscall */
     _SC_KILL,
@@ -259,6 +285,33 @@ static const struct sock_filter _sc_filter_rw[] = {
     _SC_ALLOW(__NR_setsockopt),
     _SC_ALLOW(__NR_getsockname),
     _SC_ALLOW(__NR_getpeername),
+
+    /* kcgi FastCGI spawns worker threads — allow thread-related syscalls */
+    _SC_ALLOW(__NR_clone),
+#ifdef __NR_clone3
+    _SC_ALLOW(__NR_clone3),
+#endif
+    _SC_ALLOW(__NR_set_robust_list),
+    _SC_ALLOW(__NR_sigaltstack),
+#ifdef __NR_eventfd2
+    _SC_ALLOW(__NR_eventfd2),
+#endif
+#ifdef __NR_eventfd
+    _SC_ALLOW(__NR_eventfd),
+#endif
+    _SC_ALLOW(__NR_tgkill),
+    _SC_ALLOW(__NR_tkill),
+    _SC_ALLOW(__NR_waitid),
+#ifdef __NR_wait4
+    _SC_ALLOW(__NR_wait4),
+#endif
+    _SC_ALLOW(__NR_sched_yield),
+    _SC_ALLOW(__NR_getdents64),
+    _SC_ALLOW(__NR_set_tid_address),
+    _SC_ALLOW(__NR_rseq),
+#ifdef __NR_membarrier
+    _SC_ALLOW(__NR_membarrier),
+#endif
 
     /* rw extras */
     _SC_ALLOW(__NR_openat),

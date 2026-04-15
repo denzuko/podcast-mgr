@@ -1,15 +1,19 @@
-# podcast-mgr.service — systemd USER unit for fcgiwrap worker
+# podcast-mgr.service — systemd USER unit for index.cgi FastCGI worker
 #
 # Install: ~/.config/systemd/user/podcast-mgr.service
 # Enable:  systemctl --user enable --now podcast-mgr.socket
-#          (enabling the socket is sufficient; service activates on demand)
 #
-# %h  = $HOME (/home/<USER>)
+# index.cgi is a persistent FastCGI worker built with kcgi's khttp_fcgi_*
+# API. It calls khttp_fcgi_init() which picks up the socket passed by
+# systemd via LISTEN_FDS, then loops in khttp_fcgi_parse() handling
+# requests. It must run directly — NOT via fcgiwrap.
 #
-# index.cgi calls getenv("HOME") via resolve_config_path() to locate
-# ~/.config/podcasts/feeds.xml. The Environment= line ensures HOME is
-# set correctly when the unit starts without a login session
-# (i.e. after loginctl enable-linger).
+# fcgiwrap exec()s a new process per request (CGI model). index.cgi
+# expects to be long-lived (FastCGI model). Running index.cgi under
+# fcgiwrap causes a deadlock: fcgiwrap speaks FastCGI to haproxy while
+# index.cgi tries to initialise its own FastCGI listener on the same fd.
+#
+# %h = $HOME
 
 [Unit]
 Description=podcast-mgr FastCGI worker
@@ -19,11 +23,21 @@ After=podcast-mgr.socket
 [Service]
 Type=simple
 
-# Adjust path to index.cgi to match your build/install location:
-#   Dev:  %h/podcast-mgr/index.cgi
-#   Prod: /usr/local/libexec/podcast-mgr/index.cgi
-ExecStart=/usr/bin/fcgiwrap -c 1 -f -s unix:/run/fcgi/podcast-mgr.sock
+# index.cgi uses khttp_fcgi_init() which checks FCGI_LISTENSOCK_FILENO (fd 0)
+# for an inherited socket. StandardInput=socket tells systemd to pass the
+# socket unit's fd as stdin so kcgi finds it on fd 0 as the FastCGI spec
+# requires. Without this, systemd passes via LISTEN_FDS (fd 3+) and
+# khttp_fcgi_init falls back to standalone mode, hanging on accept().
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
 
+# Point at your built index.cgi — adjust <BUILDDIR> to match:
+#   Dev:  %h/podcast-mgr/index.cgi   (./nob install default)
+#   Prod: /usr/local/libexec/podcast-mgr/index.cgi
+ExecStart=%h/podcast-mgr/index.cgi
+
+# HOME lets resolve_config_path() find ~/.config/podcasts/feeds.xml
 Environment=HOME=%h
 # Environment=XDG_CONFIG_HOME=%h/.config
 
