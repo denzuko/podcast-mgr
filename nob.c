@@ -654,7 +654,7 @@ static bool cmd_install(void) {
         nob_log(NOB_INFO, "install: installed %s -> %s", units[i], unit_dir);
     }
 
-    /* Patch ExecStart in the installed service to point at the built cgi */
+    /* Substitute <BUILDDIR> in the installed service with the actual cgi path */
     {
         char svc_path[PATH_MAX];
 #pragma GCC diagnostic push
@@ -664,7 +664,7 @@ static bool cmd_install(void) {
 #pragma GCC diagnostic pop
         char sed_expr[PATH_MAX * 2];
         snprintf(sed_expr, sizeof(sed_expr),
-                 "s|/usr/local/libexec/podcast-mgr/index.cgi|%s|g",
+                 "s|<BUILDDIR>/index.cgi|%s|g",
                  cgi_dest);
         Nob_Cmd sed = {0};
         nob_cmd_append(&sed, "sed", "-i", sed_expr, svc_path);

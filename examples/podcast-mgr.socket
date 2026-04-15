@@ -1,24 +1,23 @@
-# podcast-mgr.socket — systemd USER unit for fcgiwrap socket
+# podcast-mgr.socket — systemd USER unit for index.cgi FastCGI socket
 #
 # Install: ~/.config/systemd/user/podcast-mgr.socket
 # Enable:  systemctl --user enable --now podcast-mgr.socket
 #
-# Socket lives at /run/fcgi/podcast-mgr.sock — a shared dir created by
-# tmpfiles.d (see examples/podcast-mgr-tmpfiles.conf) with ownership
-# <USER>:www-data so haproxy (group www-data) can reach it from inside
-# its chroot without bind-mounts or XDG_RUNTIME_DIR path games.
+# Socket lives at /run/fcgi/podcast-mgr.sock — created by tmpfiles.d
+# (see examples/podcast-mgr-tmpfiles.conf) with group www-data so
+# haproxy can connect without chroot bind-mounts.
 #
-# One-time root setup before enabling this unit:
+# One-time root setup required before enabling:
 #   sudo cp examples/podcast-mgr-tmpfiles.conf /etc/tmpfiles.d/podcast-mgr.conf
 #   sudo systemd-tmpfiles --create /etc/tmpfiles.d/podcast-mgr.conf
+#   sudo loginctl enable-linger $(whoami)
 
 [Unit]
-Description=podcast-mgr fcgiwrap FastCGI socket
+Description=podcast-mgr index.cgi FastCGI socket
 
 [Socket]
 ListenStream=/run/fcgi/podcast-mgr.sock
 SocketMode=0660
-SocketUser=<USER>
 SocketGroup=www-data
 
 [Install]
