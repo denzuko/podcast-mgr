@@ -126,6 +126,19 @@ static bool cmd_build(void) {
     }
 
     nob_cmd_append(&cmd, "-o", TARGET, "src/main.c");
+
+    /* MOUNT_PATH — prefix for all ROUTE() macros in main.c.
+     * Default is "" (empty) — vhost routing, routes as /index.cgi/<route>.
+     * For path-based routing: MOUNT_PATH=/podcast ./nob build */
+    {
+        const char *mp = getenv("MOUNT_PATH");
+        if (NULL == mp) mp = "";
+        char mp_flag[256];
+        snprintf(mp_flag, sizeof(mp_flag), "-DMOUNT_PATH=\"%s\"", mp);
+        nob_cmd_append(&cmd, mp_flag);
+        nob_log(NOB_INFO, "build: MOUNT_PATH=\"%s\"", mp);
+    }
+
     nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz");
     /* nob_cmd_append(&cmd, "-lexpat"); */
     if (!nob_cmd_run(&cmd)) return false;

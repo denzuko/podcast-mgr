@@ -48,7 +48,9 @@
  * §1  CONSTANTS
  * ====================================================================== */
 
-#define MOUNT_PATH    "/podcast"
+#ifndef MOUNT_PATH
+# define MOUNT_PATH    ""
+#endif
 #define CGI_BIN       "/index.cgi"
 #define ROUTE(x)      MOUNT_PATH CGI_BIN x
 
