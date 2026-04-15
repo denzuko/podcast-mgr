@@ -639,10 +639,35 @@ static bool cmd_install(void) {
         Nob_Cmd cp = {0};
         nob_cmd_append(&cp, "cp", units[i], unit_dir);
         if (!nob_cmd_run(&cp)) return false;
+
+        /* Substitute <USER> placeholder with the calling user's name.
+         * The socket unit uses SocketUser/SocketGroup = <USER> which
+         * systemd resolves at load time — literal '<USER>' fails with
+         * "Failed to resolve user <USER>: No such process". */
+        const char *user = getenv("USER");
+        if (NULL == user || '\0' == user[0]) user = getenv("LOGNAME");
+        if (NULL != user && '\0' != user[0]) {
+            char installed[PATH_MAX];
+            const char *base = strrchr(units[i], '/');
+            base = (NULL != base) ? base + 1 : units[i];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+            snprintf(installed, sizeof(installed), "%s/%s", unit_dir, base);
+#pragma GCC diagnostic pop
+            char user_expr[256];
+            snprintf(user_expr, sizeof(user_expr), "s|<USER>|%s|g", user);
+            Nob_Cmd sub = {0};
+            nob_cmd_append(&sub, "sed", "-i", user_expr, installed);
+            if (!nob_cmd_run(&sub)) return false;
+        } else {
+            nob_log(NOB_WARNING,
+                    "install: USER/LOGNAME not set — "
+                    "<USER> placeholder left in %s, edit manually", units[i]);
+        }
         nob_log(NOB_INFO, "install: installed %s -> %s", units[i], unit_dir);
     }
 
-    /* Patch ExecStart in the installed service to point at the built cgi */
+    /* Substitute <BUILDDIR> in the installed service with the actual cgi path */
     {
         char svc_path[PATH_MAX];
 #pragma GCC diagnostic push
@@ -652,7 +677,7 @@ static bool cmd_install(void) {
 #pragma GCC diagnostic pop
         char sed_expr[PATH_MAX * 2];
         snprintf(sed_expr, sizeof(sed_expr),
-                 "s|/usr/local/libexec/podcast-mgr/index.cgi|%s|g",
+                 "s|<BUILDDIR>/index.cgi|%s|g",
                  cgi_dest);
         Nob_Cmd sed = {0};
         nob_cmd_append(&sed, "sed", "-i", sed_expr, svc_path);
