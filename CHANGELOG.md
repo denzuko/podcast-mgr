@@ -270,6 +270,38 @@ Correct tool responsibilities:
 - `scripts/ast_filter.py` — superseded by `scripts/ast_filter.jq`
 - `scripts/gen_ast.sh` — logic moved into `nob.c cmd_ast` directly
 
+## [1.4.0] — 2026-04-15
+
+### Fixed
+
+- `main.c`: `#include <khtml.h>` → `#include <kcgihtml.h>` — correct header name.
+- `main.c`: `RouteDef.method` type changed from `enum krequ` to `enum kmethod`;
+  `KREQU_GET`/`KREQU_POST` → `KMETHOD_GET`/`KMETHOD_POST`.
+  `krequ` enumerates request headers (Origin, Host…); HTTP methods are `enum kmethod`.
+- `main.c`: `send_response()` — `kreps` → `kresps`; `kstatusmsgs` → `khttps`.
+- `main.c`: `kxml_putn()` does not exist — replaced with `kxml_puts()` in `kxml_sv`.
+- `main.c`: `kxml_pushtag`, `kxml_poptag`, `kxml_attr` do not exist in kcgixml —
+  all partial renderers (`render_list`, `render_form`, `render_error`, `render_notice`)
+  rewritten to use `khttp_puts` directly. kcgixml removed as a dependency.
+- `main.c`: All `kxml_putc(x, string)` calls — `kxml_putc` takes a single `char`,
+  not a `const char *`. Replaced with `kxml_puts` / `khttp_puts` throughout.
+- `main.c`: `static_assert(FIELDS[n].key == ...)` — struct member subscript is
+  not a constant expression in C. Replaced with runtime `assert()` in `main()`.
+- `main.c`: `static const String_View SV_EMPTY = { NULL, 0 }` — tsoding/sv.h
+  struct layout is `{ count, data }`, not `{ data, count }`. Fixed to `{ 0, NULL }`.
+- `main.c`: `KATTR_INTEGRITY` absent in older kcgi installs — htmx `<script>` tag
+  now emitted via raw `khttp_puts` with inline SRI hash, removing the version dependency.
+- `nob.c`: Removed `-lkcgixml` from linker flags — kcgixml no longer used.
+
+### Changed
+
+- `main.c`: `kcgixml.h` include removed; all HTML partial output now uses
+  `khttp_puts` / `khttp_write` directly. The khtml API (`render_shell`) is unchanged.
+
+### Security
+
+- `test_main.c`: 52 xUnit cases — 0 failures.
+
 ## [1.3.0] — 2026-04-14
 
 ### Added
