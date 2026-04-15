@@ -1,3 +1,8 @@
+/* _GNU_SOURCE: enables syscall(2), lstat(2), fileno(3) on glibc without
+ * needing _XOPEN_SOURCE conflicts with kcgi headers. Must precede all
+ * system includes. */
+#define _GNU_SOURCE
+
 /*
  * podcast-mgr/main.c  —  FastCGI SPA for managing feeds.xml
  * BCHS stack: kcgi · kcgihtml · xml.h · sv.h · arena.h · sandbox.h
@@ -489,6 +494,8 @@ static void kxml_input(struct kreq *r, const FieldDef *fd, String_View val) {
     }
     khttp_puts(r, "\">");
 }
+
+static void kxml_select(struct kreq *r, const FieldDef *fd, String_View cur) {
     khttp_puts(r, "<select name=\"");
     khttp_puts(r, fd->xml_name);
     khttp_puts(r, "\" class=\"");
@@ -611,7 +618,7 @@ static void render_form(struct kreq *r, const PodcastComp *p, size_t id) {
         khttp_puts(r, "</label>");
 
         if (fd->kind == INPUT_SELECT)
-            khtml_select(r, fd, cur);
+            kxml_select(r, fd, cur);
         else
             kxml_input(r, fd, cur);
 
