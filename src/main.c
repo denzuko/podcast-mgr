@@ -684,9 +684,11 @@ static void render_shell(struct kreq *r) {
             /* KATTR_INTEGRITY was added in kcgi ≥ 0.13; emit it raw to stay
              * compatible with older installs. */
             khttp_puts(r, "<script src=\"https://unpkg.com/htmx.org@1.9.12\""
-                          " integrity=\"sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2uoJkU0g"
-                          "+0AP8W3yl/xV9UhFZPNqoVCbQSM\""
+                          " integrity=\"sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2\""
                           " crossorigin=\"anonymous\"></script>");
+            khttp_puts(r, "<script defer"
+                          " src=\"https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js\""
+                          "></script>");
         khtml_closeelem(&h, 1);
 
         khtml_attr(&h, KELEM_BODY,
@@ -713,37 +715,20 @@ static void render_shell(struct kreq *r) {
                 khtml_attr(&h, KELEM_DIV,
                            KATTR_CLASS, "flex gap-6 text-sm font-bold",
                            KATTR__MAX);
-                    khtml_attr(&h, KELEM_A,
-                               KATTR_CLASS,
-                               "cursor-pointer hover:text-indigo-400 transition",
-                               KATTR__MAX);
-                    khttp_puts(r,
-                        " hx-get=\"" ROUTE("/list") "\""
-                        " hx-target=\"#main-content\""
-                        " hx-push-url=\"" ROUTE("/list") "\"");
-                    khtml_puts(&h, "FEEDS");
-                    khtml_closeelem(&h, 1);
-
-                    khtml_attr(&h, KELEM_A,
-                               KATTR_CLASS,
-                               "cursor-pointer hover:text-indigo-400 transition",
-                               KATTR__MAX);
-                    khttp_puts(r,
-                        " hx-get=\"" ROUTE("/add") "\""
-                        " hx-target=\"#main-content\"");
-                    khtml_puts(&h, "ADD NEW");
-                    khtml_closeelem(&h, 1);
+                    khttp_puts(r, "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
+                                  " hx-get=\"" ROUTE("/list") "\""
+                                  " hx-target=\"#main-content\""
+                                  " hx-push-url=\"" ROUTE("/list") "\">FEEDS</a>");
+                    khttp_puts(r, "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
+                                  " hx-get=\"" ROUTE("/add") "\""
+                                  " hx-target=\"#main-content\">ADD NEW</a>");
                 khtml_closeelem(&h, 1);
             khtml_closeelem(&h, 1);
 
-            khtml_attr(&h, KELEM_MAIN,
-                       KATTR_ID, "main-content",
-                       KATTR_CLASS, "p-6 md:p-10",
-                       KATTR__MAX);
-            khttp_puts(r,
-                " hx-get=\"" ROUTE("/list") "\""
-                " hx-trigger=\"load\"");
-            khtml_closeelem(&h, 1);
+            khttp_puts(r, "<main id=\"main-content\""
+                          " class=\"p-6 md:p-10\""
+                          " hx-get=\"" ROUTE("/list") "\""
+                          " hx-trigger=\"load once\"></main>");
 
         khtml_closeelem(&h, 1);
     khtml_closeelem(&h, 1);
