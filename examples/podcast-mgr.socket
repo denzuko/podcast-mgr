@@ -1,0 +1,24 @@
+# podcast-mgr.socket — systemd USER unit for fcgiwrap socket
+#
+# Install: ~/.config/systemd/user/podcast-mgr.socket
+# Enable:  systemctl --user enable --now podcast-mgr.socket
+#
+# %t expands to $XDG_RUNTIME_DIR (/run/user/UID).
+# Directory is created automatically by RuntimeDirectory= and
+# cleaned up on logout (or never, if loginctl enable-linger is set).
+#
+# haproxy (system package) must be granted access to this socket.
+# See examples/fcgiwrap.conf — "Socket permission bridge" section.
+
+[Unit]
+Description=podcast-mgr fcgiwrap FastCGI socket
+
+[Socket]
+ListenStream=%t/podcast-mgr/fcgi.sock
+SocketMode=0660
+DirectoryMode=0750
+RuntimeDirectory=podcast-mgr
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=sockets.target
