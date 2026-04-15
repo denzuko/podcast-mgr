@@ -145,4 +145,49 @@ else
     printf "  SKIP: --no-build or nob absent\n"
 fi
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Suite 5: render_shell HTML structure
+# Validates the literal output string in the built binary — no FastCGI
+# harness needed. Catches structural regressions (missing </head>, scripts
+# outside head, khtml mixing, cascade triggers) before deployment.
+# ═══════════════════════════════════════════════════════════════════════════
+suite "render_shell HTML structure"
+
+if [ "$NO_BUILD" -eq 0 ] && [ -f "$REPO/index.cgi" ]; then
+    t "DOCTYPE present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q '<!DOCTYPE html>'")" \
+        "strings: <!DOCTYPE html>"
+
+    t "head closes before body opens"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q '</head><body'")" \
+        "strings: </head><body"
+
+    t "htmx script tag present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'htmx.org@1.9.12'")" \
+        "strings: htmx.org@1.9.12"
+
+    t "Alpine.js script tag present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'alpinejs'")" \
+        "strings: alpinejs"
+
+    t "data-cfasync=false on scripts (Cloudflare Rocket Loader guard)"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'data-cfasync'")" \
+        "strings: data-cfasync"
+
+    t "no khtml in binary (khtml/khttp_puts mixing guard)"
+    assert_true "$(check "! strings '$REPO/index.cgi' | grep -q 'khtml_open'")" \
+        "strings: no khtml_open"
+
+    t "hx-trigger=load once (not bare load)"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'hx-trigger=.load once'")" \
+        "strings: hx-trigger=load once"
+
+    t "main-content id present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'main-content'")" \
+        "strings: main-content"
+else
+    printf "  SKIP: kcgi not found or --no-build\n"
+fi
+
 summary
