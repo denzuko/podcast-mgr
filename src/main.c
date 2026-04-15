@@ -1,7 +1,11 @@
-/* _GNU_SOURCE: enables syscall(2), lstat(2), fileno(3) on glibc without
- * needing _XOPEN_SOURCE conflicts with kcgi headers. Must precede all
- * system includes. */
-#define _GNU_SOURCE
+/* _GNU_SOURCE: dev-host Linux/glibc shim only.
+ * Primary target is BSD (FreeBSD/OpenBSD) where lstat(2), fileno(3), and
+ * syscall(2) are visible by default.  On glibc, -std=c11 suppresses them
+ * unless a feature-test macro is set before the first system header.
+ * Has no effect on BSD or clang/libc on the target. */
+#ifdef __linux__
+# define _GNU_SOURCE
+#endif
 
 /*
  * podcast-mgr/main.c  —  FastCGI SPA for managing feeds.xml
