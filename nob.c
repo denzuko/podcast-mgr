@@ -533,6 +533,209 @@ static bool cmd_policy(void) {
  * clean
  * ====================================================================== */
 
+/* =========================================================================
+ * install
+ *
+ * Linux:  deploys index.cgi + user systemd units for the calling user.
+ *         Wires socket ACL so system haproxy can reach the user socket.
+ *         Requires: systemctl, loginctl, setfacl (acl package).
+ *         Does NOT require root for the unit install itself — only the
+ *         loginctl enable-linger and setfacl steps need sudo.
+ *
+ * BSD:    prints the pkg install command and exits.  Package management
+ *         is handled natively; we don't second-guess it.
+ * ====================================================================== */
+
+#ifdef __linux__
+
+#include <linux/limits.h>  /* PATH_MAX */
+
+/* Resolve the calling user's XDG_RUNTIME_DIR without relying on the
+ * env var being set (it may not be in a nob session).  Fallback:
+ * /run/user/<uid>  which is the systemd-logind convention. */
+static void runtime_dir(char *buf, size_t n) {
+    const char *xdg = getenv("XDG_RUNTIME_DIR");
+    if (NULL != xdg && '\0' != xdg[0]) {
+        snprintf(buf, n, "%s", xdg);
+    } else {
+        snprintf(buf, n, "/run/user/%u", (unsigned)getuid());
+    }
+}
+
+static bool cmd_install(void) {
+    nob_log(NOB_INFO, "==> install (Linux user-unit deployment)");
+
+    /* ── Paths ── */
+    char rt[PATH_MAX];
+    runtime_dir(rt, sizeof(rt));
+
+    char sock_dir[PATH_MAX], unit_dir[PATH_MAX], cgi_dest[PATH_MAX];
+    /* The suffix strings are short; PATH_MAX is a safe upper bound.
+     * Suppress -Wformat-truncation: paths will never approach PATH_MAX. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+    snprintf(sock_dir,  sizeof(sock_dir),  "%s/podcast-mgr",       rt);
+    snprintf(unit_dir,  sizeof(unit_dir),  "%s/.config/systemd/user",
+             getenv("HOME") ? getenv("HOME") : ".");
+    snprintf(cgi_dest,  sizeof(cgi_dest),  "%s/podcast-mgr/%s",
+             getenv("HOME") ? getenv("HOME") : ".", TARGET);
+#pragma GCC diagnostic pop
+
+    /* ── 1. Build index.cgi if not already built ── */
+    if (!nob_file_exists(TARGET)) {
+        nob_log(NOB_INFO, "install: " TARGET " not found — building first");
+        if (!cmd_build()) return false;
+    }
+
+    /* ── 2. Install index.cgi to ~/podcast-mgr/ ── */
+    nob_log(NOB_INFO, "install: deploying %s -> %s", TARGET, cgi_dest);
+    {
+        char dest_dir[PATH_MAX];
+        snprintf(dest_dir, sizeof(dest_dir), "%s/podcast-mgr",
+                 getenv("HOME") ? getenv("HOME") : ".");
+        Nob_Cmd mk = {0};
+        nob_cmd_append(&mk, "mkdir", "-p", dest_dir);
+        if (!nob_cmd_run(&mk)) return false;
+
+        Nob_Cmd cp = {0};
+        nob_cmd_append(&cp, "cp", TARGET, cgi_dest);
+        if (!nob_cmd_run(&cp)) return false;
+
+        Nob_Cmd ch = {0};
+        nob_cmd_append(&ch, "chmod", "0755", cgi_dest);
+        if (!nob_cmd_run(&ch)) return false;
+    }
+
+    /* ── 3. Install user unit files ── */
+    nob_log(NOB_INFO, "install: unit dir %s", unit_dir);
+    {
+        Nob_Cmd mk = {0};
+        nob_cmd_append(&mk, "mkdir", "-p", unit_dir);
+        if (!nob_cmd_run(&mk)) return false;
+    }
+
+    const char *units[] = {
+        "examples/podcast-mgr.socket",
+        "examples/podcast-mgr.service",
+    };
+    for (size_t i = 0; i < sizeof(units)/sizeof(units[0]); ++i) {
+        if (!nob_file_exists(units[i])) {
+            nob_log(NOB_ERROR, "install: %s not found", units[i]);
+            return false;
+        }
+        Nob_Cmd cp = {0};
+        nob_cmd_append(&cp, "cp", units[i], unit_dir);
+        if (!nob_cmd_run(&cp)) return false;
+        nob_log(NOB_INFO, "install: installed %s -> %s", units[i], unit_dir);
+    }
+
+    /* Patch ExecStart in the installed service to point at the built cgi */
+    {
+        char svc_path[PATH_MAX];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+        snprintf(svc_path, sizeof(svc_path),
+                 "%s/podcast-mgr.service", unit_dir);
+#pragma GCC diagnostic pop
+        char sed_expr[PATH_MAX * 2];
+        snprintf(sed_expr, sizeof(sed_expr),
+                 "s|/usr/local/libexec/podcast-mgr/index.cgi|%s|g",
+                 cgi_dest);
+        Nob_Cmd sed = {0};
+        nob_cmd_append(&sed, "sed", "-i", sed_expr, svc_path);
+        if (!nob_cmd_run(&sed)) return false;
+    }
+
+    /* ── 4. Reload user daemon and enable socket ── */
+    nob_log(NOB_INFO, "install: systemctl --user daemon-reload");
+    {
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd, "systemctl", "--user", "daemon-reload");
+        if (!nob_cmd_run(&cmd)) return false;
+    }
+    {
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd,
+                       "systemctl", "--user", "enable", "--now",
+                       "podcast-mgr.socket");
+        if (!nob_cmd_run(&cmd)) return false;
+    }
+
+    /* ── 5. Create socket dir and apply ACL for system haproxy ── */
+    nob_log(NOB_INFO, "install: socket dir %s", sock_dir);
+    {
+        Nob_Cmd mk = {0};
+        nob_cmd_append(&mk, "mkdir", "-p", sock_dir);
+        nob_cmd_run(&mk);   /* may already exist — ignore error */
+    }
+
+    /* setfacl: grant haproxy user rx on runtime dir and socket dir.
+     * This requires the acl package and the calling user to have
+     * permission to set ACLs on their own files.
+     * Failures here are non-fatal — print guidance and continue. */
+    nob_log(NOB_INFO,
+            "install: setting ACL so haproxy can reach socket");
+    nob_log(NOB_INFO,
+            "  (requires 'acl' package; errors here are non-fatal)");
+    {
+        /* ACL on XDG_RUNTIME_DIR itself */
+        Nob_Cmd acl = {0};
+        nob_cmd_append(&acl, "setfacl", "-m", "u:haproxy:rx", rt);
+        if (!nob_cmd_run(&acl))
+            nob_log(NOB_WARNING,
+                    "setfacl on %s failed — run manually or use "
+                    "'sudo usermod -aG %s haproxy'",
+                    rt, getenv("USER") ? getenv("USER") : "nuci3");
+
+        /* ACL on socket subdir */
+        Nob_Cmd acl2 = {0};
+        nob_cmd_append(&acl2, "setfacl", "-m", "u:haproxy:rx", sock_dir);
+        nob_cmd_run(&acl2);
+
+        /* Default ACL so the socket itself inherits rw for haproxy */
+        Nob_Cmd acl3 = {0};
+        nob_cmd_append(&acl3, "setfacl", "-dm", "u:haproxy:rw", sock_dir);
+        nob_cmd_run(&acl3);
+    }
+
+    nob_log(NOB_INFO, "==> install: done");
+    nob_log(NOB_INFO,
+            "  Socket will appear at: %s/fcgi.sock", sock_dir);
+    nob_log(NOB_INFO,
+            "  To enable boot-time start (one-time, requires sudo):");
+    nob_log(NOB_INFO,
+            "    sudo loginctl enable-linger %s",
+            getenv("USER") ? getenv("USER") : "$(whoami)");
+    nob_log(NOB_INFO,
+            "  To verify: systemctl --user status podcast-mgr.socket");
+    return true;
+}
+
+#else /* BSD — defer to native package management */
+
+static bool cmd_install(void) {
+    nob_log(NOB_INFO, "==> install (BSD)");
+    nob_log(NOB_INFO,
+            "BSD package management handles service installation natively.");
+    nob_log(NOB_INFO,
+            "Install the port/package, then enable via rc.conf:");
+    nob_log(NOB_INFO, "  FreeBSD:  pkg install podcast-mgr");
+    nob_log(NOB_INFO, "            sysrc podcast_mgr_enable=YES");
+    nob_log(NOB_INFO, "            service podcast_mgr start");
+    nob_log(NOB_INFO, "  OpenBSD:  pkg_add podcast-mgr");
+    nob_log(NOB_INFO, "            rcctl enable podcast_mgr");
+    nob_log(NOB_INFO, "            rcctl start podcast_mgr");
+    nob_log(NOB_INFO,
+            "See examples/fcgiwrap.conf for rc.d unit templates.");
+    return true;
+}
+
+#endif /* __linux__ */
+
+/* =========================================================================
+ * clean
+ * ====================================================================== */
+
 static bool cmd_clean(void) {
     nob_log(NOB_INFO, "==> clean");
     Nob_Cmd cmd = {0};
@@ -586,6 +789,7 @@ static const Node dag_nodes[] = {
     { "sarif",   cmd_sarif,   DEPS("sbom")                     },
     { "vex",     cmd_vex,     NO_DEPS                          },
     { "policy",  cmd_policy,  DEPS("ast","nob-ast","sbom","sarif") },
+    { "install", cmd_install, DEPS("build")                    },
     { "clean",   cmd_clean,   NO_DEPS                          },
     { "all",     NULL,        DEPS("build","test","ast","nob-ast",
                                    "cflow","sbom","sarif","policy") },
@@ -653,6 +857,8 @@ static void cmd_help(const char *prog) {
         "  test            Run unit + e2e tests (dep: build)\n"
         "  test-unit       Run test_main (52 xUnit cases)\n"
         "  test-e2e        Run test_nob.sh build tests\n"
+        "  install         Deploy index.cgi + user units (Linux) or print\n"
+        "                  pkg install instructions (BSD)  (dep: build)\n"
         "  ast             Regenerate " AST_OUT " via clang + jq\n"
         "  nob-ast         Regenerate " NOB_AST_OUT " (build driver AST)\n"
         "  cflow           Generate " CFLOW_OUT " static call graph\n"
@@ -666,6 +872,7 @@ static void cmd_help(const char *prog) {
         "\n"
         "DAG dependency edges:\n"
         "  test    → build\n"
+        "  install → build\n"
         "  sarif   → sbom\n"
         "  policy  → ast, nob-ast, sbom, sarif\n"
         "  all     → build, test, ast, nob-ast, cflow, sbom, sarif, policy\n"
