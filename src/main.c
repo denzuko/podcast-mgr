@@ -1,3 +1,12 @@
+/* _GNU_SOURCE: dev-host Linux/glibc shim only.
+ * Primary target is BSD (FreeBSD/OpenBSD) where lstat(2), fileno(3), and
+ * syscall(2) are visible by default.  On glibc, -std=c11 suppresses them
+ * unless a feature-test macro is set before the first system header.
+ * Has no effect on BSD or clang/libc on the target. */
+#ifdef __linux__
+# define _GNU_SOURCE
+#endif
+
 /*
  * podcast-mgr/main.c  —  FastCGI SPA for managing feeds.xml
  * BCHS stack: kcgi · kcgihtml · xml.h · sv.h · arena.h · sandbox.h
@@ -489,6 +498,8 @@ static void kxml_input(struct kreq *r, const FieldDef *fd, String_View val) {
     }
     khttp_puts(r, "\">");
 }
+
+static void kxml_select(struct kreq *r, const FieldDef *fd, String_View cur) {
     khttp_puts(r, "<select name=\"");
     khttp_puts(r, fd->xml_name);
     khttp_puts(r, "\" class=\"");
@@ -611,7 +622,7 @@ static void render_form(struct kreq *r, const PodcastComp *p, size_t id) {
         khttp_puts(r, "</label>");
 
         if (fd->kind == INPUT_SELECT)
-            khtml_select(r, fd, cur);
+            kxml_select(r, fd, cur);
         else
             kxml_input(r, fd, cur);
 
