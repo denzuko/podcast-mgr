@@ -1,0 +1,22 @@
+--- a/etc/haproxy/haproxy.cfg
++++ b/etc/haproxy/haproxy.cfg
+@@ -1,13 +1,14 @@
+ fcgi-app podcast-mgr
+-    docroot /home/denzuko/podcast-mgr
++    docroot /home/nuci3/podcast-mgr
+     index   index.cgi
+ 
+-    path-info ^/podcast/index\.cgi(/.*)$
++    path-info ^/index\.cgi(/.*)$
+ 
+-    set-param HOME           /home/denzuko
+-    # set-param XDG_CONFIG_HOME /home/denzuko/.config
++    set-param SCRIPT_NAME    /index.cgi
++    set-param HOME           /home/nuci3
++    # set-param XDG_CONFIG_HOME /home/nuci3/.config
+ 
+ backend podcast_fcgi
+     mode http
+-    server fcgi1 unix@/var/run/podcast-mgr/fcgi.sock proto fcgi
++    server fcgi1 unix@/run/podcast-mgr/fcgi.sock proto fcgi
+     use-fcgi-app podcast-mgr
