@@ -342,10 +342,12 @@ static bool skip_tags(const char *xml, size_t *idx) {
     (*idx)++;
     return true;
   }
-  // Comment
+  // Comment — advance past '<!--' first to avoid size_t underflow
+  // when checking xml[*idx-1] and xml[*idx-2]
   else if (xml[*idx] == '!' && xml[*idx + 1] == '-' && xml[*idx + 2] == '-') {
-    while (!(xml[*idx] == '>' && xml[*idx - 1] == '-' && xml[*idx - 2] == '-')) (*idx)++;
-    (*idx)++;
+    (*idx) += 3; /* skip past '<!--' */
+    while (!(xml[*idx] == '-' && xml[*idx + 1] == '-' && xml[*idx + 2] == '>')) (*idx)++;
+    (*idx) += 3; /* skip past '-->' */
     return true;
   }
   return false;
@@ -415,6 +417,10 @@ static void parse_tag_inner_text(const char *xml, size_t *idx, XMLNode **curr_no
 // Call continue if returns false.
 static bool parse_tag(const char *xml, size_t *idx, XMLNode **curr_node) {
   SKIP_WHITESPACE(xml, idx);
+  /* Handle comments and PIs inside element content — the xml_parse_string
+   * loop only calls skip_tags at the top level; the recursive parse_tag
+   * path does not, so <!-- --> nodes inside elements are mis-parsed. */
+  if (skip_tags(xml, idx)) return false;
   // End tag </tag>
   if (xml[*idx] == '/') {
     parse_end_tag(xml, idx, curr_node);

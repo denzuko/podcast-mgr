@@ -8,7 +8,7 @@
 #endif
 
 /*
- * podcast-mgr/main.c  —  FastCGI SPA for managing feeds.xml
+ * podcast-mgr/main.c  —  CGI handler for managing feeds.xml
  * BCHS stack: kcgi · kcgihtml · xml.h · sv.h · arena.h
  *
  * Single-user local-network tool.  Guards retained are for correctness
