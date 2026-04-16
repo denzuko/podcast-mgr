@@ -9,7 +9,7 @@
 
 /*
  * podcast-mgr/main.c  —  FastCGI SPA for managing feeds.xml
- * BCHS stack: kcgi · kcgihtml · xml.h · sv.h · arena.h · sandbox.h
+ * BCHS stack: kcgi · kcgihtml · xml.h · sv.h · arena.h
  *
  * Single-user local-network tool.  Guards retained are for correctness
  * (bounds checks, atomic writes, file sanity) not for adversarial threat
@@ -42,7 +42,6 @@
 #include "sv.h"
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
-#include "sandbox.h"
 
 /* =========================================================================
  * §1  CONSTANTS
@@ -751,10 +750,6 @@ int main(void) {
     PodcastArray db = { .arena = &arena };
     if (0 != load_feeds_xml(xml_path, &arena, &db)) goto done;
 
-    /* sandbox_lockdown_rw returns 0 only on SANDBOX_SECCOMP_DISABLED
-     * (unknown-arch stub). On x86_64/aarch64/riscv64 it calls prctl+seccomp
-     * and can genuinely return -1.  Suppress the false-positive warning. */
-    if (0 != sandbox_lockdown_rw(-1)) goto done; // cppcheck-suppress knownConditionTrueFalse
 
     struct kreq r;
     while (KCGI_OK == khttp_fcgi_parse(fcgi, &r)) {
