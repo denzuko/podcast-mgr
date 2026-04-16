@@ -899,17 +899,26 @@ int main(void) {
 
     /* HTTP Basic Auth — check ~/.config/podcasts/auth if it exists.
      * If the auth file is absent, access is open (auth disabled).
-     * If present, credentials must match or we return 401. */
+     * If present, credentials must match or we return 401.
+     * khttpbasic.response is "user:password" (Base64-decoded by kcgi). */
     {
         char stored_user[256] = {0}, stored_pass[256] = {0};
         const char *auth_path = resolve_auth_path(&arena);
         if (load_auth(auth_path, stored_user, sizeof(stored_user),
                       stored_pass, sizeof(stored_pass))) {
             int authed = 0;
-            if (r.rawauth.type == KAUTH_BASIC)
-                authed = auth_check(r.rawauth.d.basic.user,
-                                    r.rawauth.d.basic.pass,
-                                    stored_user, stored_pass);
+            if (r.rawauth.type == KAUTH_BASIC &&
+                NULL != r.rawauth.d.basic.response) {
+                /* Parse "user:password" from response */
+                char resp[512] = {0};
+                snprintf(resp, sizeof(resp), "%s", r.rawauth.d.basic.response);
+                char *colon = strchr(resp, ':');
+                if (NULL != colon) {
+                    *colon = '\0';
+                    authed = auth_check(resp, colon + 1,
+                                        stored_user, stored_pass);
+                }
+            }
             if (!authed) {
                 khttp_head(&r, kresps[KRESP_STATUS],
                            "%s", khttps[KHTTP_401]);
