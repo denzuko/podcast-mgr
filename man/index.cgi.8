@@ -131,7 +131,7 @@ Read at worker startup; written atomically on save and delete
 operations.
 Must be a regular file; symlinks are rejected.
 Maximum size 512\ KB.
-.It Pa $XDG_CONFIG_HOME/podcasts/.htpasswd
+.It Pa $XDG_CONFIG_HOME/podcasts/authstore
 Optional HTTP Basic Auth credentials file in Apache htpasswd bcrypt
 format.
 If present, every request must supply matching credentials via the
@@ -142,8 +142,8 @@ Format: one line per user,
 .Dq username:$2y$NN$salt+hash ,
 generated with:
 .Bd -literal -offset indent
-htpasswd -nbB username password >> ~/.config/podcasts/.htpasswd
-chmod 600 ~/.config/podcasts/.htpasswd
+htpasswd -nbB username password >> ~/.config/podcasts/authstore
+chmod 600 ~/.config/podcasts/authstore
 .Ed
 Requires
 .Xr crypt 3

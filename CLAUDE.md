@@ -163,8 +163,8 @@ cdxgen -t c . -o sbom.json
 ## What this project is NOT
 
 - Not a podcast player or download manager (that is `podcast.sh` + cron).
-- Optional HTTP Basic Auth via `~/.config/podcasts/.htpasswd` in htpasswd bcrypt format.
-  Generate: `htpasswd -nbB username password >> ~/.config/podcasts/.htpasswd && chmod 600 ~/.config/podcasts/.htpasswd`.
+- Optional HTTP Basic Auth via `~/.config/podcasts/authstore` in htpasswd bcrypt format.
+  Generate: `htpasswd -nbB username password >> ~/.config/podcasts/authstore && chmod 600 ~/.config/podcasts/authstore`.
   If absent the UI is publicly accessible. Requires `-lcrypt` at build time.
 - Not internet-facing. Local network only.
 - Not a general-purpose feed reader. It manages one XML file.
