@@ -278,6 +278,14 @@ foreach feed ( $FEEDS:q )
         if ( 1 == $VERBOSE ) echo "No urls found from rss feed"
         continue
     endif
+
+    # Extract podcast-level metadata for ID3 tagging
+    set pod_album  = `xmlstarlet sel -t -v "//channel/title" "$tmp_xml" 2>/dev/null || echo "$title"`
+    set pod_artist = `xmlstarlet sel -t -v "//channel/itunes:author" "$tmp_xml" 2>/dev/null`
+    if ("" == "$pod_artist") set pod_artist = `xmlstarlet sel -t -v "//channel/author" "$tmp_xml" 2>/dev/null`
+    if ("" == "$pod_artist") set pod_artist = "$title"
+
+    set ep_idx = 1
     foreach mp3_url ( $mp3_urls:q )
         set filename = `echo "$mp3_url" | cut -d'?' -f1 | xargs basename`
         set safe_title = `echo "$title" | tr ' ' '_' | tr -cd '[:alnum:]_-'`
@@ -287,9 +295,26 @@ foreach feed ( $FEEDS:q )
             curl -A "$AGENT" -sLk "$mp3_url" -o "$DEST_DIR/$filename"
             if (0 != $status) then
                 if ( 1 == $VERBOSE ) echo "Error retrieving audio file: $mp3_url"
+                @ ep_idx++
                 continue
             endif
+
+            # Tag with ID3 metadata from RSS feed (requires id3v2)
+            if ( -x "`which id3v2 2>/dev/null`" ) then
+                set ep_title = `xmlstarlet sel -t -v "(//item)[$ep_idx]/title" "$tmp_xml" 2>/dev/null`
+                set ep_year  = `xmlstarlet sel -t -v "(//item)[$ep_idx]/pubDate" "$tmp_xml" 2>/dev/null | grep -oE '[0-9]{4}' | head -1`
+                if ("" == "$ep_title") set ep_title = "$filename:r"
+                if ("" == "$ep_year")  set ep_year  = `date +%Y`
+                if ( 1 == $VERBOSE ) echo "  Tagging: $ep_title"
+                id3v2 \
+                    --artist  "$pod_artist" \
+                    --album   "$pod_album"  \
+                    --song    "$ep_title"   \
+                    --year    "$ep_year"    \
+                    "$DEST_DIR/$filename" >& /dev/null
+            endif
         endif
+        @ ep_idx++
     end
 end
 
@@ -321,5 +346,11 @@ Options:
     -d, --debug         Enable debug output
     -v, --verbose       Enable verbose output
     -h, --help          Show this message
+
+Dependencies:
+    curl, xmlstarlet    Required
+    id3v2               Optional — install for automatic ID3 tag updates
+                        Debian/Ubuntu: apt install id3v2
+                        FreeBSD: pkg install id3v2
 EOL
 exit 1
