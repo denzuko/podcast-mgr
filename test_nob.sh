@@ -207,6 +207,10 @@ if [ "$NO_BUILD" -eq 0 ] && [ -f "$REPO/index.cgi" ]; then
     assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'viewBox'")" \
         "strings: viewBox (SVG icons)"
 
+    t "HTTP Basic Auth 401 response present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'podcast-mgr'")" \
+        "strings: Basic realm podcast-mgr"
+
     t "card logo favicon URL present"
     assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'favicons'")" \
         "strings: favicons (card logos)"
