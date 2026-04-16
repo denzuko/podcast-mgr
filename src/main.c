@@ -184,35 +184,37 @@ typedef enum {
 } StyleKey;
 
 static const char *const CSS[S__MAX] = {
-    [S_CARD]       = "p-6 bg-white shadow-sm rounded-xl border flex "
-                     "justify-between items-start gap-4 mb-4 transition "
-                     "hover:border-slate-400",
-    [S_HDR]        = "text-lg font-black text-slate-900 break-all",
+    [S_CARD]       = "p-4 bg-slate-800 shadow-sm rounded-xl border border-slate-700 flex "
+                     "justify-between items-start gap-4 mb-3 transition "
+                     "hover:border-indigo-500",
+    [S_HDR]        = "text-base font-black text-white break-all",
     [S_SUB]        = "text-xs font-bold uppercase tracking-tighter "
-                     "text-indigo-600 mt-1",
-    [S_URL_TEXT]   = "text-xs text-slate-400 mt-1 truncate",
-    [S_BTN]        = "bg-slate-900 text-white px-4 py-2 rounded-lg "
-                     "hover:bg-slate-700 transition font-bold text-sm "
+                     "text-indigo-400 mt-1",
+    [S_URL_TEXT]   = "text-xs text-slate-500 mt-1 truncate",
+    [S_BTN]        = "bg-indigo-600 text-white px-4 py-2 rounded-lg "
+                     "hover:bg-indigo-500 transition font-bold text-sm "
                      "whitespace-nowrap",
-    [S_BTN_DANGER] = "bg-red-600 text-white px-4 py-2 rounded-lg "
-                     "hover:bg-red-700 transition font-bold text-sm "
+    [S_BTN_DANGER] = "bg-red-700 text-white px-4 py-2 rounded-lg "
+                     "hover:bg-red-600 transition font-bold text-sm "
                      "whitespace-nowrap",
-    [S_BTN_GHOST]  = "bg-slate-100 text-slate-700 px-4 py-2 rounded-lg "
-                     "hover:bg-slate-200 transition font-bold text-sm "
+    [S_BTN_GHOST]  = "bg-slate-700 text-slate-200 px-4 py-2 rounded-lg "
+                     "hover:bg-slate-600 transition font-bold text-sm "
                      "whitespace-nowrap",
     [S_BTN_ADD]    = "bg-indigo-600 text-white px-5 py-2 rounded-xl "
-                     "font-bold hover:bg-indigo-700 transition",
-    [S_INPUT]      = "p-2 border rounded-lg bg-slate-50 w-full text-sm "
-                     "focus:bg-white focus:ring-2 focus:ring-slate-900 "
-                     "outline-none",
-    [S_SELECT]     = "p-2 border rounded-lg bg-slate-50 w-full text-sm "
-                     "focus:bg-white focus:ring-2 focus:ring-slate-900 "
+                     "font-bold hover:bg-indigo-500 transition",
+    [S_INPUT]      = "p-2 border border-slate-600 rounded-lg bg-slate-700 "
+                     "text-slate-100 w-full text-sm "
+                     "focus:bg-slate-600 focus:ring-2 focus:ring-indigo-500 "
+                     "outline-none placeholder-slate-400",
+    [S_SELECT]     = "p-2 border border-slate-600 rounded-lg bg-slate-700 "
+                     "text-slate-100 w-full text-sm "
+                     "focus:bg-slate-600 focus:ring-2 focus:ring-indigo-500 "
                      "outline-none appearance-none",
     [S_LABEL]      = "text-[10px] uppercase font-bold text-slate-400 "
                      "mb-1 block tracking-wider",
-    [S_NOTICE_OK]  = "text-sm font-bold mt-3 text-center text-green-600",
-    [S_NOTICE_ERR] = "text-sm font-bold mt-3 text-center text-red-600",
-    [S_NOTICE_INFO]= "text-sm font-bold mt-3 text-center text-slate-500",
+    [S_NOTICE_OK]  = "text-sm font-bold mt-3 text-center text-green-400",
+    [S_NOTICE_ERR] = "text-sm font-bold mt-3 text-center text-red-400",
+    [S_NOTICE_INFO]= "text-sm font-bold mt-3 text-center text-slate-400",
 };
 
 /* =========================================================================
@@ -552,17 +554,61 @@ static void kxml_select(struct kreq *r, const FieldDef *fd, String_View cur) {
 static void render_list(struct kreq *r, const PodcastArray *db,
                         StyleKey notice_sk, const char *notice)
 {
-    khttp_puts(r, "<div class=\"max-w-2xl mx-auto\">");
+    /* Alpine fuzzy search wrapper */
+    khttp_puts(r, "<div class=\"max-w-2xl mx-auto\""
+                  " x-data=\"{search:'',filter(){document.querySelectorAll('[data-title]')"
+                  ".forEach(el=>{el.style.display="
+                  "el.dataset.title.toLowerCase().includes(this.search.toLowerCase())?'':'none'})}}\">");
+
+    /* Search bar */
+    khttp_puts(r, "<div class=\"mb-6\">"
+                  "<input type=\"search\" x-model=\"search\" @input=\"filter()\""
+                  " placeholder=\"Search feeds\xe2\x80\xa6\""
+                  " class=\"w-full px-4 py-2 rounded-xl bg-slate-800"
+                  " border border-slate-700 text-slate-100"
+                  " placeholder-slate-500 focus:outline-none"
+                  " focus:ring-2 focus:ring-indigo-500 text-sm\"/>"
+                  "</div>");
 
     for (size_t i = 0; i < db->count; ++i) {
         const PodcastComp *p = &db->items[i];
         if (p->deleted) continue;
 
-        char edit_url[256], del_url[256];
-        snprintf(edit_url, sizeof(edit_url), ROUTE("/edit?id=%zu"), i);
+        char edit_url[256], del_url[256], logo_url[512], title_esc[512];
+        snprintf(edit_url, sizeof(edit_url), ROUTE("/edit?id=%zu"),   i);
         snprintf(del_url,  sizeof(del_url),  ROUTE("/delete?id=%zu"), i);
 
-        khttp_puts(r, "<div class=\""); khttp_puts(r, CSS[S_CARD]); khttp_puts(r, "\">");
+        /* Extract hostname for Google favicon service */
+        const char *url_s = p->attrs[ATTR_URL].data;
+        char host[256]    = "example.com";
+        if (url_s && p->attrs[ATTR_URL].count > 0) {
+            const char *h = url_s;
+            if (strncmp(h, "https://", 8) == 0) h += 8;
+            else if (strncmp(h, "http://", 7) == 0) h += 7;
+            size_t hlen = 0;
+            while (h[hlen] && h[hlen] != '/' && h[hlen] != ':') hlen++;
+            if (hlen > 0 && hlen < sizeof(host)) {
+                memcpy(host, h, hlen);
+                host[hlen] = '\0';
+            }
+        }
+        snprintf(logo_url, sizeof(logo_url),
+                 "https://www.google.com/s2/favicons?domain=%s&sz=64", host);
+
+        /* Title for Alpine data-title filter */
+        snprintf(title_esc, sizeof(title_esc), "%.*s",
+                 (int)p->attrs[ATTR_TITLE].count,
+                 p->attrs[ATTR_TITLE].data ? p->attrs[ATTR_TITLE].data : "");
+
+        khttp_puts(r, "<div data-title=\"");
+        khttp_puts(r, title_esc);
+        khttp_puts(r, "\" class=\""); khttp_puts(r, CSS[S_CARD]); khttp_puts(r, "\">");
+
+            /* Podcast logo / favicon */
+            khttp_puts(r, "<img src=\""); khttp_puts(r, logo_url);
+            khttp_puts(r, "\" alt=\"\" loading=\"lazy\""
+                          " class=\"w-10 h-10 rounded-lg object-cover"
+                          " flex-shrink-0 bg-slate-700\"/>");
 
             khttp_puts(r, "<div class=\"min-w-0 flex-1\">");
 
@@ -699,26 +745,47 @@ static void render_shell(struct kreq *r) {
                   " src=\"https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js\""
                   " data-cfasync=\"false\"></script>"
                   "</head>"
-                  "<body class=\"bg-slate-50 font-sans text-slate-900 min-h-screen\">"
-                  "<nav class=\"sticky top-0 z-10 px-6 py-4 bg-slate-900 "
-                  "text-white flex justify-between items-center shadow-lg\">"
+                  "<body class=\"bg-slate-900 font-sans text-slate-100 min-h-screen\">"
+                  "<nav class=\"sticky top-0 z-10 px-6 py-3 bg-slate-950 "
+                  "border-b border-slate-800 flex justify-between items-center\">"
                   "<span class=\"font-black tracking-tighter text-xl\">"
                   "PODCAST<span class=\"text-indigo-400\">.SH</span>"
                   "</span>"
-                  "<div class=\"flex gap-6 text-sm font-bold\">"
-                  "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
+                  "<div class=\"flex items-center gap-2\">"
+                  /* Refresh/list icon */
+                  "<button title=\"Feeds\""
+                  " class=\"p-2 rounded-lg text-slate-400 hover:text-white"
+                  " hover:bg-slate-800 transition\""
                   " hx-get=\"" ROUTE("/list") "\""
                   " hx-target=\"#main-content\""
-                  " hx-push-url=\"" ROUTE("/list") "\">FEEDS</a>"
-                  "<a class=\"cursor-pointer hover:text-indigo-400 transition\""
+                  " hx-push-url=\"" ROUTE("/list") "\">"
+                  "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\""
+                  " fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\""
+                  " stroke-width=\"2\">"
+                  "<path stroke-linecap=\"round\" stroke-linejoin=\"round\""
+                  " d=\"M4 6h16M4 12h16M4 18h16\"/>"
+                  "</svg>"
+                  "</button>"
+                  /* Add feed icon */
+                  "<button title=\"Add Feed\""
+                  " class=\"p-2 rounded-lg text-slate-400 hover:text-white"
+                  " hover:bg-slate-800 transition\""
                   " hx-get=\"" ROUTE("/add") "\""
-                  " hx-target=\"#main-content\">ADD NEW</a>"
+                  " hx-target=\"#main-content\">"
+                  "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"w-5 h-5\""
+                  " fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\""
+                  " stroke-width=\"2\">"
+                  "<path stroke-linecap=\"round\" stroke-linejoin=\"round\""
+                  " d=\"M12 4v16m8-8H4\"/>"
+                  "</svg>"
+                  "</button>"
                   "</div>"
                   "</nav>"
                   "<main id=\"main-content\""
                   " class=\"p-6 md:p-10\""
-                  " hx-get=\"" ROUTE("/list") "\""
-                  " hx-trigger=\"load once\"></main>"
+                  " x-data"
+                  " x-init=\"htmx.ajax('GET','" ROUTE("/list") "',{target:'#main-content',swap:'innerHTML'})\""
+                  "></main>"
                   "</body></html>");
 }
 /* =========================================================================
