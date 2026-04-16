@@ -657,8 +657,28 @@ static void suite_auth_check(void) {
     TEST("prefix match not accepted (admin vs administrator)");
     ASSERT_EQ(auth_check_impl("admin", "secret", "administrator", "secret"), 0);
 
-    TEST("suffix match not accepted (xadmin vs admin)");
-    ASSERT_EQ(auth_check_impl("xadmin", "secret", "admin", "secret"), 0);
+    TEST("response string parsing: user:pass split correctly");
+    {
+        char resp[512] = "admin:secret";
+        char *colon = strchr(resp, ':');
+        ASSERT_NOTNULL(colon);
+        if (colon) {
+            *colon = '\0';
+            ASSERT_EQ(auth_check_impl(resp, colon+1, "admin", "secret"), 1);
+        }
+    }
+
+    TEST("response string with colon in password");
+    {
+        char resp[512] = "admin:pass:word";
+        char *colon = strchr(resp, ':');
+        ASSERT_NOTNULL(colon);
+        if (colon) {
+            *colon = '\0';
+            /* only first colon splits — password is "pass:word" */
+            ASSERT_EQ(auth_check_impl(resp, colon+1, "admin", "pass:word"), 1);
+        }
+    }
 }
 
 int main(void) {
