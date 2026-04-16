@@ -726,23 +726,15 @@ static void render_shell(struct kreq *r) {
  * ====================================================================== */
 
 int main(void) {
-    /* Runtime equivalents of the removed non-constant static_asserts */
     assert(FIELDS[ATTR_TITLE].key == KEY_TITLE && "FIELDS order: ATTR_TITLE");
     assert(FIELDS[ATTR_URL  ].key == KEY_URL   && "FIELDS order: ATTR_URL");
     assert(FIELDS[ATTR_PULL ].key == KEY_PULL  && "FIELDS order: ATTR_PULL");
 
     int rc = 1;
-    struct kfcgi *fcgi = NULL;
     Arena arena = {0};
 
     for (int i = 0; i < PAGE__MAX; ++i)
         pages[i] = ROUTES[i].path;
-
-    if (KCGI_OK != khttp_fcgi_init(&fcgi,
-                                   keys,  KEY__MAX,
-                                   pages, PAGE__MAX,
-                                   PAGE_INDEX))
-        goto done;
 
     const char *xml_path = resolve_config_path(&arena);
     if (NULL == xml_path) goto done;
@@ -750,18 +742,18 @@ int main(void) {
     PodcastArray db = { .arena = &arena };
     if (0 != load_feeds_xml(xml_path, &arena, &db)) goto done;
 
-
     struct kreq r;
-    while (KCGI_OK == khttp_fcgi_parse(fcgi, &r)) {
+    if (KCGI_OK != khttp_parse(&r, keys, KEY__MAX, pages, PAGE__MAX, PAGE_INDEX))
+        goto done;
 
-        if (r.method != ROUTES[r.page].method) {
-            send_response(&r);
-            render_error(&r, "Method not allowed.");
-            khttp_free(&r);
-            continue;
-        }
+    if (r.method != ROUTES[r.page].method) {
+        send_response(&r);
+        render_error(&r, "Method not allowed.");
+        khttp_free(&r);
+        goto done;
+    }
 
-        switch (r.page) {
+    switch (r.page) {
 
         case PAGE_INDEX:
             send_response(&r);
@@ -852,13 +844,10 @@ int main(void) {
             break;
         }
 
-        khttp_free(&r);
-    }
-
+    khttp_free(&r);
     rc = 0;
 
 done:
-    if (NULL != fcgi) khttp_fcgi_free(fcgi);
     arena_free(&arena);
     return rc;
 }
