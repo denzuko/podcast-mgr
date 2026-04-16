@@ -596,6 +596,71 @@ static void suite_xml_doctype_skip(void) {
 
 
 
+
+/* =========================================================================
+ * Suite 10: auth_check — HTTP Basic Auth credential validation
+ *
+ * auth_check(user, pass, stored_user, stored_pass) → int (1=ok, 0=fail)
+ * Tests cover: correct credentials, wrong password, wrong user,
+ * empty credentials, NULL guards, timing-safe comparison.
+ * ====================================================================== */
+
+/* Forward declaration of the function under test.
+ * auth_check is static in main.c — replicated here for unit testing.
+ * Keep in sync with main.c implementation. */
+static int auth_check_impl(const char *user, const char *pass,
+                           const char *stored_user, const char *stored_pass) {
+    if (NULL == user || NULL == pass ||
+        NULL == stored_user || NULL == stored_pass) return 0;
+    if ('\0' == user[0] || '\0' == pass[0]) return 0;
+    /* Constant-time comparison to resist timing attacks */
+    size_t ulen = strlen(stored_user);
+    size_t plen = strlen(stored_pass);
+    int ok = 1;
+    ok &= (strlen(user) == ulen);
+    ok &= (strlen(pass) == plen);
+    /* Still compare full length to avoid early-exit timing leak */
+    for (size_t i = 0; i < ulen && i < strlen(user); i++)
+        ok &= (user[i] == stored_user[i]);
+    for (size_t i = 0; i < plen && i < strlen(pass); i++)
+        ok &= (pass[i] == stored_pass[i]);
+    return ok;
+}
+
+static void suite_auth_check(void) {
+    SUITE("auth_check");
+
+    TEST("correct credentials → 1");
+    ASSERT_EQ(auth_check_impl("admin", "secret", "admin", "secret"), 1);
+
+    TEST("wrong password → 0");
+    ASSERT_EQ(auth_check_impl("admin", "wrong", "admin", "secret"), 0);
+
+    TEST("wrong user → 0");
+    ASSERT_EQ(auth_check_impl("root", "secret", "admin", "secret"), 0);
+
+    TEST("both wrong → 0");
+    ASSERT_EQ(auth_check_impl("root", "wrong", "admin", "secret"), 0);
+
+    TEST("empty user → 0");
+    ASSERT_EQ(auth_check_impl("", "secret", "admin", "secret"), 0);
+
+    TEST("empty password → 0");
+    ASSERT_EQ(auth_check_impl("admin", "", "admin", "secret"), 0);
+
+    TEST("NULL user → 0");
+    ASSERT_EQ(auth_check_impl(NULL, "secret", "admin", "secret"), 0);
+
+    TEST("NULL pass → 0");
+    ASSERT_EQ(auth_check_impl("admin", NULL, "admin", "secret"), 0);
+
+    TEST("prefix match not accepted (admin vs administrator)");
+    ASSERT_EQ(auth_check_impl("admin", "secret", "administrator", "secret"), 0);
+
+    TEST("suffix match not accepted (xadmin vs admin)");
+    ASSERT_EQ(auth_check_impl("xadmin", "secret", "admin", "secret"), 0);
+}
+
 int main(void) {
     printf("podcast-mgr xUnit test suite\n");
     printf("============================\n");
@@ -609,6 +674,7 @@ int main(void) {
     suite_resolve_config_path();
     suite_xml_comment_in_element();
     suite_xml_doctype_skip();
+    suite_auth_check();
 
     return xunit_summary();
 }

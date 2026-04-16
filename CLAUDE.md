@@ -163,7 +163,8 @@ cdxgen -t c . -o sbom.json
 ## What this project is NOT
 
 - Not a podcast player or download manager (that is `podcast.sh` + cron).
-- Not multi-user. No authentication, no sessions, no CSRF tokens.
+- Optional HTTP Basic Auth via `~/.config/podcasts/auth` (format: `user:password`).
+  If absent the UI is publicly accessible. Create with `chmod 600`.
 - Not internet-facing. Local network only.
 - Not a general-purpose feed reader. It manages one XML file.
 

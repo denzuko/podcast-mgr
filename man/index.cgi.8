@@ -131,6 +131,16 @@ Read at worker startup; written atomically on save and delete
 operations.
 Must be a regular file; symlinks are rejected.
 Maximum size 512\ KB.
+.It Pa $XDG_CONFIG_HOME/podcasts/auth
+Optional HTTP Basic Auth credentials file.
+If present, every request must supply matching credentials via the
+.Dq Authorization: Basic
+header.
+If absent, the UI is publicly accessible.
+Format: a single line
+.Dq username:password
+with no surrounding whitespace.
+Protect with mode 0600.
 .It Pa $XDG_CONFIG_HOME/podcasts/feeds.xml.tmp
 Temporary file used during atomic write.
 Created alongside

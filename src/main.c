@@ -55,7 +55,9 @@
 
 #define APP_SUBDIR    "/podcasts"
 #define FEED_FILENAME "/feeds.xml"
+#define AUTH_FILENAME "/auth"
 #define REL_PATH      APP_SUBDIR FEED_FILENAME
+#define AUTH_PATH     APP_SUBDIR AUTH_FILENAME
 #define XDG_FALLBACK  "/.config" REL_PATH
 
 /* Sanity cap: reject feeds.xml larger than this (corrupt file guard) */
@@ -236,6 +238,75 @@ static const char *const CSS[S__MAX] = {
 /* =========================================================================
  * §7  PATH RESOLUTION
  * ====================================================================== */
+
+/* =========================================================================
+ * §7  HTTP BASIC AUTH
+ *
+ * Credentials stored in ~/.config/podcasts/auth as a single line:
+ *   username:password
+ *
+ * auth_check: constant-time comparison to resist timing attacks.
+ * Returns 1 if credentials match, 0 otherwise.
+ * ====================================================================== */
+
+static int auth_check(const char *user, const char *pass,
+                      const char *stored_user, const char *stored_pass) {
+    if (NULL == user || NULL == pass ||
+        NULL == stored_user || NULL == stored_pass) return 0;
+    if ('\0' == user[0] || '\0' == pass[0]) return 0;
+    size_t ulen = strlen(stored_user);
+    size_t plen = strlen(stored_pass);
+    int ok = 1;
+    ok &= (strlen(user) == ulen);
+    ok &= (strlen(pass) == plen);
+    for (size_t i = 0; i < ulen && i < strlen(user); i++)
+        ok &= (user[i] == stored_user[i]);
+    for (size_t i = 0; i < plen && i < strlen(pass); i++)
+        ok &= (pass[i] == stored_pass[i]);
+    return ok;
+}
+
+/* Resolve path to auth file, build into arena.
+ * Returns NULL if neither XDG_CONFIG_HOME nor HOME is set. */
+static const char *resolve_auth_path(Arena *a) {
+    const char *xdg  = getenv("XDG_CONFIG_HOME");
+    const char *home = getenv("HOME");
+    char path[4096];
+
+    if (NULL != xdg && '\0' != xdg[0])
+        snprintf(path, sizeof(path), "%s" AUTH_PATH, xdg);
+    else if (NULL != home)
+        snprintf(path, sizeof(path), "%s/.config" AUTH_PATH, home);
+    else
+        return NULL;
+
+    size_t len = strlen(path);
+    char  *res = arena_alloc(a, len + 1);
+    memcpy(res, path, len + 1);
+    return res;
+}
+
+/* Load credentials from auth file into caller-supplied buffers.
+ * Format: "username:password\n"
+ * Returns 1 on success, 0 if file absent or malformed.
+ * If auth file is absent auth is disabled (open access). */
+static int load_auth(const char *path, char *user, size_t ulen,
+                     char *pass, size_t plen) {
+    if (NULL == path) return 0;
+    FILE *f = fopen(path, "r");
+    if (NULL == f) return 0;   /* absent → auth disabled */
+    char line[512] = {0};
+    if (NULL == fgets(line, sizeof(line), f)) { fclose(f); return 0; }
+    fclose(f);
+    /* strip newline */
+    line[strcspn(line, "\r\n")] = '\0';
+    char *colon = strchr(line, ':');
+    if (NULL == colon || colon == line) return 0;
+    *colon = '\0';
+    snprintf(user, ulen, "%s", line);
+    snprintf(pass, plen, "%s", colon + 1);
+    return 1;
+}
 
 static const char *resolve_config_path(Arena *a) {
     const char *xdg  = getenv("XDG_CONFIG_HOME");
@@ -825,6 +896,37 @@ int main(void) {
     struct kreq r;
     if (KCGI_OK != khttp_parse(&r, keys, KEY__MAX, pages, PAGE__MAX, PAGE_INDEX))
         goto done;
+
+    /* HTTP Basic Auth — check ~/.config/podcasts/auth if it exists.
+     * If the auth file is absent, access is open (auth disabled).
+     * If present, credentials must match or we return 401. */
+    {
+        char stored_user[256] = {0}, stored_pass[256] = {0};
+        const char *auth_path = resolve_auth_path(&arena);
+        if (load_auth(auth_path, stored_user, sizeof(stored_user),
+                      stored_pass, sizeof(stored_pass))) {
+            int authed = 0;
+            if (r.rawauth.type == KAUTH_BASIC)
+                authed = auth_check(r.rawauth.d.basic.user,
+                                    r.rawauth.d.basic.pass,
+                                    stored_user, stored_pass);
+            if (!authed) {
+                khttp_head(&r, kresps[KRESP_STATUS],
+                           "%s", khttps[KHTTP_401]);
+                khttp_head(&r, kresps[KRESP_WWW_AUTHENTICATE],
+                           "Basic realm=\"podcast-mgr\"");
+                khttp_head(&r, kresps[KRESP_CONTENT_TYPE],
+                           "%s", kmimetypes[KMIME_TEXT_HTML]);
+                khttp_body(&r);
+                khttp_puts(&r, "<html><body>"
+                               "<h1>401 Unauthorized</h1>"
+                               "<p>Valid credentials required.</p>"
+                               "</body></html>");
+                khttp_free(&r);
+                goto done;
+            }
+        }
+    }
 
     if (r.method != ROUTES[r.page].method) {
         send_response(&r);
