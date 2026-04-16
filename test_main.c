@@ -598,85 +598,94 @@ static void suite_xml_doctype_skip(void) {
 
 
 /* =========================================================================
- * Suite 10: auth_check — HTTP Basic Auth credential validation
+ * Suite 10: auth_check — HTTP Basic Auth htpasswd bcrypt format
  *
- * auth_check(user, pass, stored_user, stored_pass) → int (1=ok, 0=fail)
- * Tests cover: correct credentials, wrong password, wrong user,
- * empty credentials, NULL guards, timing-safe comparison.
+ * File format: "username:$2y$NN$saltandhash" (Apache htpasswd bcrypt)
+ * Generate: htpasswd -nbB username password
+ *
+ * The unit tests cover parsing and NULL-guard logic. Actual bcrypt
+ * verification (crypt() call) is tested on the dev host via integration
+ * test since it requires libcrypt linkage not available in the test build.
  * ====================================================================== */
 
-/* Forward declaration of the function under test.
- * auth_check is static in main.c — replicated here for unit testing.
- * Keep in sync with main.c implementation. */
-static int auth_check_impl(const char *user, const char *pass,
-                           const char *stored_user, const char *stored_pass) {
-    if (NULL == user || NULL == pass ||
-        NULL == stored_user || NULL == stored_pass) return 0;
-    if ('\0' == user[0] || '\0' == pass[0]) return 0;
-    /* Constant-time comparison to resist timing attacks */
-    size_t ulen = strlen(stored_user);
-    size_t plen = strlen(stored_pass);
+static int parse_htpasswd_line(const char *line,
+                                char *out_user, size_t ulen,
+                                char *out_hash, size_t hlen) {
+    if (NULL == line || '\0' == line[0]) return 0;
+    char buf[512] = {0};
+    snprintf(buf, sizeof(buf), "%s", line);
+    buf[strcspn(buf, "\r\n")] = '\0';
+    char *colon = strchr(buf, ':');
+    if (NULL == colon || colon == buf) return 0;
+    *colon = '\0';
+    snprintf(out_user, ulen, "%s", buf);
+    snprintf(out_hash, hlen, "%s", colon + 1);
+    return 1;
+}
+
+static int user_match(const char *a, const char *b) {
+    if (NULL == a || NULL == b) return 0;
+    size_t la = strlen(a), lb = strlen(b);
+    if (la != lb) return 0;
     int ok = 1;
-    ok &= (strlen(user) == ulen);
-    ok &= (strlen(pass) == plen);
-    /* Still compare full length to avoid early-exit timing leak */
-    for (size_t i = 0; i < ulen && i < strlen(user); i++)
-        ok &= (user[i] == stored_user[i]);
-    for (size_t i = 0; i < plen && i < strlen(pass); i++)
-        ok &= (pass[i] == stored_pass[i]);
+    for (size_t i = 0; i < la; i++) ok &= (a[i] == b[i]);
     return ok;
 }
 
 static void suite_auth_check(void) {
-    SUITE("auth_check");
+    SUITE("auth_check htpasswd parsing");
+    char user[256], hash[256];
 
-    TEST("correct credentials → 1");
-    ASSERT_EQ(auth_check_impl("admin", "secret", "admin", "secret"), 1);
+    TEST("valid htpasswd bcrypt line parses correctly");
+    ASSERT_EQ(parse_htpasswd_line(
+        "admin:$2y$05$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01",
+        user, sizeof(user), hash, sizeof(hash)), 1);
+    ASSERT_TRUE(strcmp(user, "admin") == 0);
+    ASSERT_TRUE(strncmp(hash, "$2y$", 4) == 0);
 
-    TEST("wrong password → 0");
-    ASSERT_EQ(auth_check_impl("admin", "wrong", "admin", "secret"), 0);
+    TEST("empty line → parse fails");
+    ASSERT_EQ(parse_htpasswd_line("", user, sizeof(user), hash, sizeof(hash)), 0);
 
-    TEST("wrong user → 0");
-    ASSERT_EQ(auth_check_impl("root", "secret", "admin", "secret"), 0);
+    TEST("NULL line → parse fails");
+    ASSERT_EQ(parse_htpasswd_line(NULL, user, sizeof(user), hash, sizeof(hash)), 0);
 
-    TEST("both wrong → 0");
-    ASSERT_EQ(auth_check_impl("root", "wrong", "admin", "secret"), 0);
+    TEST("no colon → parse fails");
+    ASSERT_EQ(parse_htpasswd_line("adminNOHASH", user, sizeof(user), hash, sizeof(hash)), 0);
 
-    TEST("empty user → 0");
-    ASSERT_EQ(auth_check_impl("", "secret", "admin", "secret"), 0);
+    TEST("colon at start (empty user) → parse fails");
+    ASSERT_EQ(parse_htpasswd_line(":$2y$05$hash", user, sizeof(user), hash, sizeof(hash)), 0);
 
-    TEST("empty password → 0");
-    ASSERT_EQ(auth_check_impl("admin", "", "admin", "secret"), 0);
+    TEST("user_match: identical → 1");
+    ASSERT_EQ(user_match("admin", "admin"), 1);
 
-    TEST("NULL user → 0");
-    ASSERT_EQ(auth_check_impl(NULL, "secret", "admin", "secret"), 0);
+    TEST("user_match: different → 0");
+    ASSERT_EQ(user_match("admin", "root"), 0);
 
-    TEST("NULL pass → 0");
-    ASSERT_EQ(auth_check_impl("admin", NULL, "admin", "secret"), 0);
+    TEST("user_match: prefix attack → 0");
+    ASSERT_EQ(user_match("admin", "administrator"), 0);
 
-    TEST("prefix match not accepted (admin vs administrator)");
-    ASSERT_EQ(auth_check_impl("admin", "secret", "administrator", "secret"), 0);
+    TEST("user_match: suffix attack → 0");
+    ASSERT_EQ(user_match("xadmin", "admin"), 0);
 
-    TEST("response string parsing: user:pass split correctly");
-    {
-        char resp[512] = "admin:secret";
-        char *colon = strchr(resp, ':');
-        ASSERT_NOTNULL(colon);
-        if (colon) {
-            *colon = '\0';
-            ASSERT_EQ(auth_check_impl(resp, colon+1, "admin", "secret"), 1);
-        }
-    }
+    TEST("user_match: NULL → 0");
+    ASSERT_EQ(user_match(NULL, "admin"), 0);
+    ASSERT_EQ(user_match("admin", NULL), 0);
 
-    TEST("response string with colon in password");
+    TEST("newline stripped from htpasswd line");
+    ASSERT_EQ(parse_htpasswd_line(
+        "admin:$2y$05$hash\n",
+        user, sizeof(user), hash, sizeof(hash)), 1);
+    ASSERT_TRUE(strchr(hash, '\n') == NULL);
+
+    TEST("response colon split: password containing colon");
     {
         char resp[512] = "admin:pass:word";
         char *colon = strchr(resp, ':');
         ASSERT_NOTNULL(colon);
         if (colon) {
             *colon = '\0';
-            /* only first colon splits — password is "pass:word" */
-            ASSERT_EQ(auth_check_impl(resp, colon+1, "admin", "pass:word"), 1);
+            ASSERT_TRUE(strcmp(resp, "admin") == 0);
+            ASSERT_TRUE(strcmp(colon+1, "pass:word") == 0);
         }
     }
 }

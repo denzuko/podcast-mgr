@@ -138,13 +138,13 @@ static bool cmd_build(void) {
         snprintf(a_kcgi, sizeof(a_kcgi), "%s/lib/libkcgi.a",     pfx);
         if (nob_file_exists(a_html) && nob_file_exists(a_kcgi)) {
             nob_log(NOB_INFO, "build: static kcgi from %s/lib", pfx);
-            nob_cmd_append(&cmd, a_html, a_kcgi, "-lz", "-lmd");
+            nob_cmd_append(&cmd, a_html, a_kcgi, "-lz", "-lmd", "-lcrypt");
         } else {
             nob_log(NOB_WARNING, "build: .a not found, falling back to -lkcgi");
-            nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz");
+            nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz", "-lcrypt");
         }
     } else {
-        nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz");
+        nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz", "-lcrypt");
     }
 
     if (!nob_cmd_run(&cmd)) return false;

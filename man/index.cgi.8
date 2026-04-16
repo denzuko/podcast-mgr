@@ -131,16 +131,24 @@ Read at worker startup; written atomically on save and delete
 operations.
 Must be a regular file; symlinks are rejected.
 Maximum size 512\ KB.
-.It Pa $XDG_CONFIG_HOME/podcasts/auth
-Optional HTTP Basic Auth credentials file.
+.It Pa $XDG_CONFIG_HOME/podcasts/.htpasswd
+Optional HTTP Basic Auth credentials file in Apache htpasswd bcrypt
+format.
 If present, every request must supply matching credentials via the
 .Dq Authorization: Basic
 header.
 If absent, the UI is publicly accessible.
-Format: a single line
-.Dq username:password
-with no surrounding whitespace.
-Protect with mode 0600.
+Format: one line per user,
+.Dq username:$2y$NN$salt+hash ,
+generated with:
+.Bd -literal -offset indent
+htpasswd -nbB username password >> ~/.config/podcasts/.htpasswd
+chmod 600 ~/.config/podcasts/.htpasswd
+.Ed
+Requires
+.Xr crypt 3
+.Pq Fl lcrypt
+at build time.
 .It Pa $XDG_CONFIG_HOME/podcasts/feeds.xml.tmp
 Temporary file used during atomic write.
 Created alongside

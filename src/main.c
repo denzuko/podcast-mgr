@@ -31,6 +31,9 @@
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
+#ifdef __linux__
+# include <crypt.h>   /* crypt(3) — link with -lcrypt */
+#endif
 #include <sys/stat.h>
 
 #include <kcgi.h>
@@ -55,7 +58,7 @@
 
 #define APP_SUBDIR    "/podcasts"
 #define FEED_FILENAME "/feeds.xml"
-#define AUTH_FILENAME "/auth"
+#define AUTH_FILENAME "/.htpasswd"
 #define REL_PATH      APP_SUBDIR FEED_FILENAME
 #define AUTH_PATH     APP_SUBDIR AUTH_FILENAME
 #define XDG_FALLBACK  "/.config" REL_PATH
@@ -240,34 +243,77 @@ static const char *const CSS[S__MAX] = {
  * ====================================================================== */
 
 /* =========================================================================
- * §7  HTTP BASIC AUTH
+ * §7  HTTP BASIC AUTH — htpasswd bcrypt format
  *
- * Credentials stored in ~/.config/podcasts/auth as a single line:
- *   username:password
+ * Credentials file: ~/.config/podcasts/auth (mode 0600)
+ * Format: Apache htpasswd bcrypt — one line per user:
+ *   username:$2y$NN$salt+hash
+ * Generate: htpasswd -nbB username password
+ *         or: openssl passwd -6 -stdin (SHA-512 fallback)
  *
- * auth_check: constant-time comparison to resist timing attacks.
- * Returns 1 if credentials match, 0 otherwise.
+ * auth_check: uses crypt(3) from libcrypt (-lcrypt).
+ * Returns 1 if user+pass match the stored hash, 0 otherwise.
  * ====================================================================== */
 
-static int auth_check(const char *user, const char *pass,
-                      const char *stored_user, const char *stored_pass) {
-    if (NULL == user || NULL == pass ||
-        NULL == stored_user || NULL == stored_pass) return 0;
-    if ('\0' == user[0] || '\0' == pass[0]) return 0;
-    size_t ulen = strlen(stored_user);
-    size_t plen = strlen(stored_pass);
+/* Constant-time username comparison. */
+static int user_match(const char *a, const char *b) {
+    if (NULL == a || NULL == b) return 0;
+    size_t la = strlen(a), lb = strlen(b);
+    if (la != lb) return 0;
     int ok = 1;
-    ok &= (strlen(user) == ulen);
-    ok &= (strlen(pass) == plen);
-    for (size_t i = 0; i < ulen && i < strlen(user); i++)
-        ok &= (user[i] == stored_user[i]);
-    for (size_t i = 0; i < plen && i < strlen(pass); i++)
-        ok &= (pass[i] == stored_pass[i]);
+    for (size_t i = 0; i < la; i++) ok &= (a[i] == b[i]);
     return ok;
 }
 
-/* Resolve path to auth file, build into arena.
- * Returns NULL if neither XDG_CONFIG_HOME nor HOME is set. */
+/* Parse a single htpasswd line "user:hash\n" into buffers.
+ * Returns 1 on success, 0 on malformed input. */
+static int parse_htpasswd_line(const char *line,
+                                char *out_user, size_t ulen,
+                                char *out_hash, size_t hlen) {
+    if (NULL == line || '\0' == line[0]) return 0;
+    char buf[512] = {0};
+    snprintf(buf, sizeof(buf), "%s", line);
+    buf[strcspn(buf, "\r\n")] = '\0';
+    char *colon = strchr(buf, ':');
+    if (NULL == colon || colon == buf) return 0;
+    *colon = '\0';
+    snprintf(out_user, ulen, "%s", buf);
+    snprintf(out_hash, hlen, "%s", colon + 1);
+    return 1;
+}
+
+/* Verify user:pass against a htpasswd file.
+ * Scans all lines — supports multi-user files.
+ * Returns 1 if a matching user+hash line is found, 0 otherwise.
+ * If auth file is absent returns 0 (caller disables auth on absence). */
+static int auth_verify(const char *path,
+                        const char *user, const char *pass) {
+    if (NULL == path || NULL == user || NULL == pass) return 0;
+    if ('\0' == user[0] || '\0' == pass[0]) return 0;
+
+    FILE *f = fopen(path, "r");
+    if (NULL == f) return 0;
+
+    char line[512];
+    char stored_user[256], stored_hash[256];
+    int found = 0;
+
+    while (!found && NULL != fgets(line, sizeof(line), f)) {
+        if (!parse_htpasswd_line(line, stored_user, sizeof(stored_user),
+                                 stored_hash, sizeof(stored_hash)))
+            continue;
+        if (!user_match(user, stored_user))
+            continue;
+        /* crypt(3) with stored hash as salt performs bcrypt verification */
+        const char *computed = crypt(pass, stored_hash);
+        if (NULL != computed && strcmp(computed, stored_hash) == 0)
+            found = 1;
+    }
+    fclose(f);
+    return found;
+}
+
+/* Resolve path to auth file into arena. */
 static const char *resolve_auth_path(Arena *a) {
     const char *xdg  = getenv("XDG_CONFIG_HOME");
     const char *home = getenv("HOME");
@@ -284,28 +330,6 @@ static const char *resolve_auth_path(Arena *a) {
     char  *res = arena_alloc(a, len + 1);
     memcpy(res, path, len + 1);
     return res;
-}
-
-/* Load credentials from auth file into caller-supplied buffers.
- * Format: "username:password\n"
- * Returns 1 on success, 0 if file absent or malformed.
- * If auth file is absent auth is disabled (open access). */
-static int load_auth(const char *path, char *user, size_t ulen,
-                     char *pass, size_t plen) {
-    if (NULL == path) return 0;
-    FILE *f = fopen(path, "r");
-    if (NULL == f) return 0;   /* absent → auth disabled */
-    char line[512] = {0};
-    if (NULL == fgets(line, sizeof(line), f)) { fclose(f); return 0; }
-    fclose(f);
-    /* strip newline */
-    line[strcspn(line, "\r\n")] = '\0';
-    char *colon = strchr(line, ':');
-    if (NULL == colon || colon == line) return 0;
-    *colon = '\0';
-    snprintf(user, ulen, "%s", line);
-    snprintf(pass, plen, "%s", colon + 1);
-    return 1;
 }
 
 static const char *resolve_config_path(Arena *a) {
@@ -898,25 +922,23 @@ int main(void) {
         goto done;
 
     /* HTTP Basic Auth — check ~/.config/podcasts/auth if it exists.
-     * If the auth file is absent, access is open (auth disabled).
-     * If present, credentials must match or we return 401.
-     * khttpbasic.response is "user:password" (Base64-decoded by kcgi). */
+     * Format: htpasswd bcrypt ("user:$2y$..." one line per user).
+     * If the file is absent, access is open. */
     {
-        char stored_user[256] = {0}, stored_pass[256] = {0};
         const char *auth_path = resolve_auth_path(&arena);
-        if (load_auth(auth_path, stored_user, sizeof(stored_user),
-                      stored_pass, sizeof(stored_pass))) {
+        FILE *af = auth_path ? fopen(auth_path, "r") : NULL;
+        if (NULL != af) {
+            fclose(af);
             int authed = 0;
             if (r.rawauth.type == KAUTH_BASIC &&
                 NULL != r.rawauth.d.basic.response) {
-                /* Parse "user:password" from response */
                 char resp[512] = {0};
-                snprintf(resp, sizeof(resp), "%s", r.rawauth.d.basic.response);
+                snprintf(resp, sizeof(resp), "%s",
+                         r.rawauth.d.basic.response);
                 char *colon = strchr(resp, ':');
                 if (NULL != colon) {
                     *colon = '\0';
-                    authed = auth_check(resp, colon + 1,
-                                        stored_user, stored_pass);
+                    authed = auth_verify(auth_path, resp, colon + 1);
                 }
             }
             if (!authed) {
