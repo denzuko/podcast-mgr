@@ -595,10 +595,23 @@ static void render_list(struct kreq *r, const PodcastArray *db,
         snprintf(logo_url, sizeof(logo_url),
                  "https://www.google.com/s2/favicons?domain=%s&sz=64", host);
 
-        /* Title for Alpine data-title filter */
-        snprintf(title_esc, sizeof(title_esc), "%.*s",
-                 (int)p->attrs[ATTR_TITLE].count,
-                 p->attrs[ATTR_TITLE].data ? p->attrs[ATTR_TITLE].data : "");
+        /* Title for Alpine data-title filter — must be HTML-escaped
+         * to prevent attribute injection via titles containing '"' or '<' */
+        {
+            const char *ts = p->attrs[ATTR_TITLE].data;
+            size_t      tl = p->attrs[ATTR_TITLE].count;
+            size_t      j = 0;
+            for (size_t k = 0; k < tl && j + 7 < sizeof(title_esc); ++k) {
+                switch ((unsigned char)ts[k]) {
+                case '"':  memcpy(title_esc+j, "&quot;", 6); j+=6; break;
+                case '&':  memcpy(title_esc+j, "&amp;",  5); j+=5; break;
+                case '<':  memcpy(title_esc+j, "&lt;",   4); j+=4; break;
+                case '>':  memcpy(title_esc+j, "&gt;",   4); j+=4; break;
+                default:   title_esc[j++] = ts[k];           break;
+                }
+            }
+            title_esc[j] = '\0';
+        }
 
         khttp_puts(r, "<div data-title=\"");
         khttp_puts(r, title_esc);

@@ -326,7 +326,27 @@ static void suite_xml_str_escape(void) {
     ASSERT_STREQ(s->str, "a&amp;b&lt;c&gt;d&quot;e");
     xml_string_free(s);
 
-    TEST("empty string produces empty output");
+    TEST("data-title injection: double-quote escaped");
+    /* Simulate the render_list data-title escaping logic */
+    {
+        const char *ts = "Feed \"quoted\" & <special>";
+        size_t tl = strlen(ts);
+        char buf[512]; size_t j = 0;
+        for (size_t k = 0; k < tl && j+7 < sizeof(buf); ++k) {
+            switch ((unsigned char)ts[k]) {
+            case '"': memcpy(buf+j,"&quot;",6); j+=6; break;
+            case '&': memcpy(buf+j,"&amp;", 5); j+=5; break;
+            case '<': memcpy(buf+j,"&lt;",  4); j+=4; break;
+            case '>': memcpy(buf+j,"&gt;",  4); j+=4; break;
+            default:  buf[j++]=ts[k];           break;
+            }
+        }
+        buf[j]='\0';
+        ASSERT_TRUE(strstr(buf, "&quot;") != NULL);
+        ASSERT_TRUE(strstr(buf, "&amp;")  != NULL);
+        ASSERT_TRUE(strstr(buf, "&lt;")   != NULL);
+        ASSERT_TRUE(strstr(buf, "\"")     == NULL); /* no raw quote */
+    }
     s = xml_string_new();
     xml_str_escape_test(s, "", 0);
     ASSERT_STREQ(s->str, "");
