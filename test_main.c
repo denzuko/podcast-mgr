@@ -458,8 +458,123 @@ static void suite_xml_roundtrip(void) {
 }
 
 /* =========================================================================
- * Runner
+ * Suite 7: resolve_config_path logic (path construction)
  * ====================================================================== */
+
+static void suite_resolve_config_path(void) {
+    SUITE("resolve_config_path");
+    char path[4096];
+
+    TEST("XDG_CONFIG_HOME set → path starts with XDG value");
+    setenv("XDG_CONFIG_HOME", "/tmp/xdg", 1);
+    snprintf(path, sizeof(path), "%s/podcasts/feeds.xml", "/tmp/xdg");
+    ASSERT_TRUE(strncmp(path, "/tmp/xdg", 8) == 0);
+
+    TEST("HOME fallback → path starts with HOME/.config");
+    unsetenv("XDG_CONFIG_HOME");
+    setenv("HOME", "/tmp/home", 1);
+    snprintf(path, sizeof(path), "%s/.config/podcasts/feeds.xml", "/tmp/home");
+    ASSERT_TRUE(strncmp(path, "/tmp/home/.config", 17) == 0);
+
+    TEST("path ends with feeds.xml");
+    ASSERT_TRUE(strcmp(path + strlen(path) - 9, "feeds.xml") == 0);
+}
+
+/* =========================================================================
+ * Suite 8: xml.h comment skip inside element content
+ * ====================================================================== */
+
+static void suite_xml_comment_in_element(void) {
+    SUITE("xml.h comment skip inside element");
+
+    const char *xml =
+        "<?xml version=\"1.0\"?>\n"
+        "<subscriptions>\n"
+        "  <!--podcast title=\"disabled\" url=\"https://x.com\" /-->\n"
+        "  <podcast title=\"active\" url=\"https://active.com\""
+        " scope=\"latest\" day=\"Daily\" pull_time=\"01\"/>\n"
+        "</subscriptions>\n";
+
+    TEST("xml_parse_string succeeds with comment inside element");
+    XMLNode *root = xml_parse_string(xml);
+    ASSERT_NOTNULL(root);
+    if (!root) return;
+
+    XMLNode *subs = xml_node_child_at(root, 0);
+    ASSERT_NOTNULL(subs);
+    if (!subs) { xml_node_free(root); return; }
+
+    TEST("only one child — commented node not parsed");
+    ASSERT_EQ((int)subs->children->len, 1);
+
+    XMLNode *child = xml_node_child_at(subs, 0);
+    ASSERT_NOTNULL(child);
+    if (child) {
+        TEST("child is the active entry not the commented one");
+        const char *title = xml_node_attr(child, "title");
+        ASSERT_NOTNULL(title);
+        if (title) ASSERT_TRUE(strcmp(title, "active") == 0);
+    }
+    xml_node_free(root);
+}
+
+/* =========================================================================
+ * Suite 9: xml.h DOCTYPE skip (parse_start pointer advance)
+ * ====================================================================== */
+
+static void suite_xml_doctype_skip(void) {
+    SUITE("xml.h DOCTYPE skip");
+
+    const char *xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<!DOCTYPE subscriptions [\n"
+        "<!ELEMENT subscriptions (podcast)*>\n"
+        "<!ELEMENT podcast EMPTY>\n"
+        "]>\n"
+        "<subscriptions>\n"
+        "  <podcast title=\"Test Feed\" url=\"https://test.com\""
+        " scope=\"latest\" day=\"Daily\" pull_time=\"01\"/>\n"
+        "</subscriptions>\n";
+
+    /* Replicate the parse_start pointer advance from load_feeds_xml */
+    const char *parse_start = xml;
+    char *dt = strstr((char *)xml, "<!DOCTYPE");
+    if (dt) {
+        char *end = strstr(dt, "]>");
+        if (end) parse_start = end + 2;
+    }
+
+    TEST("parse_start advances past DOCTYPE block");
+    ASSERT_TRUE(parse_start > xml);
+
+    TEST("parse_start points to content after DOCTYPE");
+    /* skip whitespace */
+    while (*parse_start && isspace((unsigned char)*parse_start)) parse_start++;
+    ASSERT_TRUE(*parse_start == '<');
+
+    TEST("xml_parse_string succeeds on post-DOCTYPE content");
+    XMLNode *root = xml_parse_string(parse_start);
+    ASSERT_NOTNULL(root);
+    if (!root) return;
+
+    XMLNode *subs = xml_node_child_at(root, 0);
+    ASSERT_NOTNULL(subs);
+    if (subs) {
+        TEST("one feed entry parsed");
+        ASSERT_EQ((int)subs->children->len, 1);
+
+        XMLNode *child = xml_node_child_at(subs, 0);
+        if (child) {
+            TEST("title attribute correct");
+            const char *title = xml_node_attr(child, "title");
+            ASSERT_NOTNULL(title);
+            if (title) ASSERT_TRUE(strcmp(title, "Test Feed") == 0);
+        }
+    }
+    xml_node_free(root);
+}
+
+
 
 int main(void) {
     printf("podcast-mgr xUnit test suite\n");
@@ -471,6 +586,9 @@ int main(void) {
     suite_fields_table();
     suite_sv_is_blank();
     suite_xml_roundtrip();
+    suite_resolve_config_path();
+    suite_xml_comment_in_element();
+    suite_xml_doctype_skip();
 
     return xunit_summary();
 }

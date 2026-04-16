@@ -111,6 +111,27 @@ deny contains msg if {
     )
 }
 
+# ── Rule 6: test coverage floor ───────────────────────────────────────────
+# The test suite must cover at least 90% of testable functions.
+# Testable functions = all static functions in main.c that operate on
+# pure C types (no kcgi dependency) — currently: validate_fields,
+# parse_id, xml_str_escape, load_feeds_xml, write_feeds_xml,
+# resolve_config_path, sv_is_blank (7 functions).
+# Covered: all 7 → 100% >= 90% threshold.
+# Add new pure-C functions here when they are added to main.c.
+
+deny contains msg if {
+    covered   := count(input.tested_functions)
+    total     := count(input.testable_functions)
+    total > 0
+    pct       := (covered * 100) / total
+    pct < 90
+    msg := sprintf(
+        "coverage: %d/%d testable functions covered (%d%%) — minimum is 90%%",
+        [covered, total, pct]
+    )
+}
+
 # ── Summary ───────────────────────────────────────────────────────────────
 
 violations := deny

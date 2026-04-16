@@ -112,9 +112,13 @@ if [ "$NO_BUILD" -eq 0 ] && [ "$HAS_KCGI" -eq 1 ]; then
     t "index.cgi produced and executable"
     assert_true "$(check "[ -x '$REPO/index.cgi' ]")" "[ -x index.cgi ]"
 
-    t "index.cgi contains khttp_fcgi_init symbol"
-    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'khttp_fcgi_init'")" \
-        "strings khttp_fcgi_init"
+    t "index.cgi uses plain CGI (khttp_parse — not khttp_fcgi)"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'khttp_parse'")" \
+        "strings khttp_parse"
+
+    t "index.cgi has no FastCGI symbols (plain CGI via fcgiwrap)"
+    assert_true "$(check "! strings '$REPO/index.cgi' | grep -q 'khttp_fcgi_init'")" \
+        "strings: no khttp_fcgi_init"
 
     t "index.cgi contains route string 'save'"
     assert_true "$(check "strings '$REPO/index.cgi' | grep -q '^save$'")" \
@@ -179,9 +183,13 @@ if [ "$NO_BUILD" -eq 0 ] && [ -f "$REPO/index.cgi" ]; then
     assert_true "$(check "! strings '$REPO/index.cgi' | grep -q 'khtml_open'")" \
         "strings: no khtml_open"
 
-    t "hx-trigger=load once (not bare load)"
-    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'hx-trigger=.load once'")" \
-        "strings: hx-trigger=load once"
+    t "Alpine x-init used for initial list load"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'x-init'")" \
+        "strings: x-init"
+
+    t "no hx-trigger on main-content (cascade guard)"
+    assert_true "$(check "! strings '$REPO/index.cgi' | grep -q 'hx-trigger'")" \
+        "strings: no hx-trigger"
 
     t "main-content id present"
     assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'main-content'")" \

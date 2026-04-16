@@ -6,7 +6,7 @@ This file provides context for AI coding assistants working in this repository.
 
 `podcast-mgr` is a two-component system:
 
-- **`index.cgi`** — FastCGI SPA (C, BCHS stack) that manages `feeds.xml`
+- **`index.cgi`** — plain CGI binary (C, BCHS stack) run via fcgiwrap that manages `feeds.xml`
   via a browser UI. Add, edit, delete podcast subscriptions.
 - **`podcast.sh`** — tcsh cron script that reads `feeds.xml` and downloads
   episodes. Runs independently at midnight; not invoked by the CGI.
@@ -45,7 +45,7 @@ All must pass before committing.
 
 | Layer | Library |
 |-------|---------|
-| FastCGI framing + field parsing | kcgi |
+| CGI request parsing | kcgi |
 | SPA root document | khtml (one function: `render_shell`) |
 | All htmx partial responses | kxml |
 | XML parse (startup only) | mrvladus/xml.h |
@@ -116,7 +116,7 @@ Validated on use by `podcast.sh` via `xmlstarlet val -s feeds.xsd`.
 ## File layout
 
 ```
-src/main.c              FastCGI worker
+src/main.c              CGI handler (khttp_parse)
 nob.c                   Build driver
 src/sandbox.h           Platform privilege-drop
 podcast.sh              tcsh cron script
