@@ -111,36 +111,42 @@ static bool cmd_build(void) {
     nob_log(NOB_INFO, "==> build: %s", TARGET);
     Nob_Cmd cmd = {0};
     nob_cmd_append(&cmd, "cc");
-    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c2x", "-O2");
+    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c2x", "-O2", "-ggdb");
     nob_cmd_append(&cmd, "-Isrc");
 
-    /* Inject -I<prefix>/include and -L<prefix>/lib when kcgi is installed
-     * outside the compiler's default search path (e.g. $HOME/.local or
-     * /usr/local on systems where only /usr is in the default path). */
     const char *pfx = kcgi_prefix();
-    char inc[4096], lib[4096];
+    char inc[4096];
     if (NULL != pfx) {
         snprintf(inc, sizeof(inc), "-I%s/include", pfx);
-        snprintf(lib, sizeof(lib), "-L%s/lib",     pfx);
-        nob_cmd_append(&cmd, inc, lib);
+        nob_cmd_append(&cmd, inc);
     }
 
     nob_cmd_append(&cmd, "-o", TARGET, "src/main.c");
 
-    /* MOUNT_PATH — prefix for all ROUTE() macros in main.c.
-     * Default is "" (empty) — vhost routing, routes as /index.cgi/<route>.
-     * For path-based routing: MOUNT_PATH=/podcast ./nob build */
-    {
-        const char *mp = getenv("MOUNT_PATH");
-        if (NULL == mp) mp = "";
-        char mp_flag[256];
-        snprintf(mp_flag, sizeof(mp_flag), "-DMOUNT_PATH=\"%s\"", mp);
-        nob_cmd_append(&cmd, mp_flag);
-        nob_log(NOB_INFO, "build: MOUNT_PATH=\"%s\"", mp);
+    const char *mp = getenv("MOUNT_PATH");
+    if (NULL == mp) mp = "";
+    char mp_flag[256];
+    snprintf(mp_flag, sizeof(mp_flag), "-DMOUNT_PATH=\"%s\"", mp);
+    nob_cmd_append(&cmd, mp_flag);
+    nob_log(NOB_INFO, "build: MOUNT_PATH=\"%s\"", mp);
+
+    /* Static link kcgi — avoids runtime library path issues.
+     * Requires: libkcgihtml.a libkcgi.a libmd (system) libz (system) */
+    if (NULL != pfx) {
+        char a_html[4096], a_kcgi[4096];
+        snprintf(a_html, sizeof(a_html), "%s/lib/libkcgihtml.a", pfx);
+        snprintf(a_kcgi, sizeof(a_kcgi), "%s/lib/libkcgi.a",     pfx);
+        if (nob_file_exists(a_html) && nob_file_exists(a_kcgi)) {
+            nob_log(NOB_INFO, "build: static kcgi from %s/lib", pfx);
+            nob_cmd_append(&cmd, a_html, a_kcgi, "-lz", "-lmd");
+        } else {
+            nob_log(NOB_WARNING, "build: .a not found, falling back to -lkcgi");
+            nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz");
+        }
+    } else {
+        nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz");
     }
 
-    nob_cmd_append(&cmd, "-lkcgihtml", "-lkcgi", "-lz");
-    /* nob_cmd_append(&cmd, "-lexpat"); */
     if (!nob_cmd_run(&cmd)) return false;
     nob_log(NOB_INFO, "==> build: OK");
     return true;
