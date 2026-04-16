@@ -58,7 +58,7 @@
 
 #define APP_SUBDIR    "/podcasts"
 #define FEED_FILENAME "/feeds.xml"
-#define AUTH_FILENAME "/.htpasswd"
+#define AUTH_FILENAME "/authstore"
 #define REL_PATH      APP_SUBDIR FEED_FILENAME
 #define AUTH_PATH     APP_SUBDIR AUTH_FILENAME
 #define XDG_FALLBACK  "/.config" REL_PATH
