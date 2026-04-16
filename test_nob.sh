@@ -167,6 +167,10 @@ if [ "$NO_BUILD" -eq 0 ] && [ -f "$REPO/index.cgi" ]; then
     assert_true "$(check "strings '$REPO/index.cgi' | grep -q '</head><body'")" \
         "strings: </head><body"
 
+    t "dark mode body class"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'bg-slate-900'")" \
+        "strings: bg-slate-900"
+
     t "htmx script tag present"
     assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'htmx.org@1.9.12'")" \
         "strings: htmx.org@1.9.12"
@@ -194,6 +198,18 @@ if [ "$NO_BUILD" -eq 0 ] && [ -f "$REPO/index.cgi" ]; then
     t "main-content id present"
     assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'main-content'")" \
         "strings: main-content"
+
+    t "fuzzy search input present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'x-model'")" \
+        "strings: x-model (fuzzy search)"
+
+    t "SVG nav icons present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'viewBox'")" \
+        "strings: viewBox (SVG icons)"
+
+    t "card logo favicon URL present"
+    assert_true "$(check "strings '$REPO/index.cgi' | grep -q 'favicons'")" \
+        "strings: favicons (card logos)"
 else
     printf "  SKIP: kcgi not found or --no-build\n"
 fi
