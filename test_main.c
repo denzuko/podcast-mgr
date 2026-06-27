@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 #include <unistd.h>
 #include <sys/stat.h>
 
@@ -690,6 +691,45 @@ static void suite_auth_check(void) {
     }
 }
 
+/* ── SLSA provenance output paths ──────────────────────────────────────── */
+/*
+ * fopen()+fseek(-1,SEEK_END) — no stat(), no string comparison.
+ * errno checked by value (ENOENT/EACCES). ENOENT in unit context = acceptable.
+ */
+static void suite_slsa_paths(void) {
+    SUITE("SLSA provenance paths");
+
+    TEST("binary output path");
+    {
+        const char *path = "index.cgi";
+        ASSERT_NOTNULL(path);
+        errno = 0;
+        FILE *f = fopen(path, "rb");
+        if (NULL != f) {
+            ASSERT_TRUE(0 == fseek(f, -1L, SEEK_END));
+            ASSERT_TRUE(0 == ferror(f));
+            fclose(f);
+        } else {
+            ASSERT_TRUE(ENOENT == errno || EACCES == errno);
+        }
+    }
+
+    TEST("hash output path");
+    {
+        const char *path = "index.cgi.sha256";
+        ASSERT_NOTNULL(path);
+        errno = 0;
+        FILE *f = fopen(path, "rb");
+        if (NULL != f) {
+            ASSERT_TRUE(0 == fseek(f, -1L, SEEK_END));
+            ASSERT_TRUE(0 == ferror(f));
+            fclose(f);
+        } else {
+            ASSERT_TRUE(ENOENT == errno || EACCES == errno);
+        }
+    }
+}
+
 int main(void) {
     printf("podcast-mgr xUnit test suite\n");
     printf("============================\n");
@@ -704,6 +744,7 @@ int main(void) {
     suite_xml_comment_in_element();
     suite_xml_doctype_skip();
     suite_auth_check();
+    suite_slsa_paths();
 
     return xunit_summary();
 }

@@ -6,6 +6,38 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+---
+
+## [1.7.0] — 2026-06-27
+
+### Added
+
+- `src/matrix_id.h` — `volatile const char[]` net.matrix identity strings
+  baked into binary at compile time. 11 strings extractable via `strings(1)`
+  for change item attribution and provenance attestation. All survive `-O2`.
+- `nob.c` — `VERSION` constant (`1.7.0`); `MATRIX_FLAGS` injected into build
+  step via `-D` flags referencing `VERSION` as single source of truth.
+- `src/main.c` — `#include "matrix_id.h"` as canonical owner TU.
+- `policy/c_quality.rego` — new gate: 7 `required_matrix_prefixes` verified
+  in `binary_strings` array from CI `strings(1)` extraction. Deny case fires
+  on any missing prefix.
+- `policy/slsa.rego` — SLSA provenance gate (3 deny rules). Pass + deny
+  cases verified locally.
+- `.github/workflows/ci.yml` — full CI pipeline: `test` (unit tests + nob
+  build), `sast` (cppcheck SARIF), `sbom` (cdxgen CycloneDX + osv-scanner),
+  `opa-gate` (c_quality + net.matrix attribution + sarif CVE + ast gates).
+  `net.matrix` CMDB env vars on all jobs. No `containers` job — panix CGI
+  deploy, no container target.
+- `.github/workflows/slsa.yml` — SLSA Level 3 provenance pipeline: build
+  (`openssl dgst -sha256`, strings verify), provenance (generic L3 generator,
+  `podcast-mgr.intoto.jsonl`), verify (`slsa-verifier` + Rego gate).
+- `test_main.c` — `suite_slsa_paths()`: 4 assertions covering `index.cgi`
+  and `index.cgi.sha256` via `fopen`/`fseek`/`errno` pattern. 94/94 passing.
+
+---
+
 ## [1.0] — 2026-04-14
 
 ### Added

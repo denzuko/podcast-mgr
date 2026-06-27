@@ -45,6 +45,7 @@
 #include "sv.h"
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
+#include "matrix_id.h"  /* net.matrix identity strings — baked into binary */
 
 /* =========================================================================
  * §1  CONSTANTS

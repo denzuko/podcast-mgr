@@ -33,6 +33,7 @@
 
 #define TARGET       "index.cgi"
 #define TEST_BIN     "test_main"
+#define VERSION      "1.7.0"
 #define AST_OUT      "ast.json"
 #define AST_RAW      "/tmp/podcast_mgr_ast_raw.json"
 #define NOB_AST_OUT  "nob_ast.json"
@@ -113,6 +114,12 @@ static bool cmd_build(void) {
     nob_cmd_append(&cmd, "cc");
     nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c2x", "-O2", "-ggdb");
     nob_cmd_append(&cmd, "-Isrc");
+    /* net.matrix identity — baked into binary for attribution + attestation */
+    nob_cmd_append(&cmd,
+        "-DMATRIX_APPLICATION=\"podcast-mgr\"",
+        "-DMATRIX_ROLE=\"cgi-feed-manager\"",
+        "-DMATRIX_VERSION=" VERSION,
+        "-DMATRIX_ENVIRONMENT=\"production\"");
 
     const char *pfx = kcgi_prefix();
     char inc[4096];
