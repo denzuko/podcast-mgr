@@ -1,0 +1,249 @@
+{
+  "name": "PODCAST-MGR",
+  "on": {
+    "push": {
+      "branches": [
+        "main"
+      ],
+      "tags": [
+        "v*"
+      ]
+    },
+    "pull_request": null
+  },
+  "env": {
+    "REGISTRY": "ghcr.io",
+    "IMAGE": "ghcr.io/denzuko/podcast-mgr"
+  },
+  "jobs": {
+    "opa-gate": {
+      "permissions": {
+        "contents": "read",
+        "security-events": "write"
+      },
+      "runs-on": "ubuntu-24.04",
+      "env": {
+        "OS": "ubuntu-24.04"
+      },
+      "steps": [
+        {
+          "name": "Checkout",
+          "uses": "actions/checkout@v4",
+          "with": {
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Install OPA",
+          "run": "curl -sL https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static \n  -o /usr/local/bin/opa && chmod +x /usr/local/bin/opa",
+          "shell": "bash"
+        },
+        {
+          "name": "Check Rego syntax",
+          "run": "opa check policy/",
+          "shell": "bash"
+        },
+        {
+          "name": "Eval SLSA gate (dry-run)",
+          "run": "echo '{}' | opa eval --bundle policy/ 'data.dps.meta.slsa.violation' || true",
+          "shell": "bash"
+        },
+        {
+          "name": "Generate SARIF",
+          "run": "opa eval --format sarif --bundle policy/ 'data' > opa.sarif || true",
+          "shell": "bash",
+          "if": "always()"
+        },
+        {
+          "name": "Upload SARIF",
+          "uses": "github/codeql-action/upload-sarif@v3",
+          "with": {
+            "sarif-file": "opa.sarif",
+            "category": "opa"
+          },
+          "if": "always()"
+        }
+      ]
+    },
+    "build": {
+      "permissions": {
+        "contents": "read"
+      },
+      "runs-on": "ubuntu-24.04",
+      "env": {
+        "OS": "ubuntu-24.04"
+      },
+      "steps": [
+        {
+          "name": "Checkout",
+          "uses": "actions/checkout@v4",
+          "with": {
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Build",
+          "run": "bats tests/",
+          "shell": "bash"
+        },
+        {
+          "name": "Hash artifact",
+          "id": "hash",
+          "run": "sha256sum podcast-mgr > podcast-mgr.sha256\necho \"sha256=$(base64 -w0 < podcast-mgr.sha256)\" >> $GITHUB_OUTPUT",
+          "shell": "bash",
+          "if": "startsWith(github.ref, 'refs/tags/v')"
+        },
+        {
+          "name": "Upload artifact",
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "name": "podcast-mgr",
+            "path": "podcast-mgr\npodcast-mgr.sha256"
+          },
+          "if": "startsWith(github.ref, 'refs/tags/v')"
+        }
+      ]
+    },
+    "sbom": {
+      "permissions": {
+        "contents": "read"
+      },
+      "runs-on": "ubuntu-24.04",
+      "env": {
+        "OS": "ubuntu-24.04"
+      },
+      "steps": [
+        {
+          "name": "Checkout",
+          "uses": "actions/checkout@v4",
+          "with": {
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Setup Node",
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "20"
+          }
+        },
+        {
+          "name": "Install cdxgen",
+          "run": "npm install -g @cyclonedx/cdxgen",
+          "shell": "bash"
+        },
+        {
+          "name": "Generate SBOM",
+          "run": "cdxgen --type generic --output sbom.json .",
+          "shell": "bash"
+        },
+        {
+          "name": "Scan CVEs",
+          "run": "osv-scanner --sbom sbom.json --format table || true",
+          "shell": "bash"
+        },
+        {
+          "name": "Upload SBOM",
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "name": "sbom.json",
+            "path": "sbom.json"
+          },
+          "if": "always()"
+        }
+      ]
+    },
+    "provenance": {
+      "needs": [
+        "build"
+      ],
+      "if": "startsWith(github.ref, 'refs/tags/v')",
+      "permissions": {
+        "id-token": "write",
+        "contents": "write",
+        "actions": "read"
+      },
+      "uses": "slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0",
+      "with": {
+        "base64-subjects": "${{ needs.build.outputs.sha256 }}",
+        "upload-assets": "true"
+      }
+    },
+    "slsa-verify": {
+      "if": "startsWith(github.ref, 'refs/tags/v')",
+      "needs": [
+        "provenance"
+      ],
+      "permissions": {
+        "contents": "read"
+      },
+      "runs-on": "ubuntu-24.04",
+      "env": {
+        "OS": "ubuntu-24.04"
+      },
+      "steps": [
+        {
+          "name": "Download artifact",
+          "uses": "actions/download-artifact@v4",
+          "with": {
+            "name": "podcast-mgr"
+          }
+        },
+        {
+          "name": "Download provenance",
+          "uses": "actions/download-artifact@v4",
+          "with": {
+            "name": "podcast-mgr.intoto.jsonl"
+          }
+        },
+        {
+          "name": "Install slsa-verifier",
+          "run": "curl -sL https://github.com/slsa-framework/slsa-verifier/releases/latest/download/slsa-verifier-linux-amd64 \n  -o /usr/local/bin/slsa-verifier && chmod +x /usr/local/bin/slsa-verifier",
+          "shell": "bash"
+        },
+        {
+          "name": "Verify provenance",
+          "run": "slsa-verifier verify-artifact podcast-mgr \\\n--provenance-path podcast-mgr.intoto.jsonl \\\n--source-uri github.com/${{ github.repository }}",
+          "shell": "bash"
+        }
+      ]
+    },
+    "release": {
+      "if": "startsWith(github.ref, 'refs/tags/v')",
+      "needs": [
+        "slsa-verify"
+      ],
+      "permissions": {
+        "contents": "write"
+      },
+      "runs-on": "ubuntu-24.04",
+      "env": {
+        "OS": "ubuntu-24.04"
+      },
+      "steps": [
+        {
+          "name": "Download artifact",
+          "uses": "actions/download-artifact@v4",
+          "with": {
+            "name": "podcast-mgr"
+          }
+        },
+        {
+          "name": "Download provenance",
+          "uses": "actions/download-artifact@v4",
+          "with": {
+            "name": "podcast-mgr.intoto.jsonl"
+          }
+        },
+        {
+          "name": "Create Release",
+          "uses": "softprops/action-gh-release@v2",
+          "with": {
+            "files": "podcast-mgr\npodcast-mgr.sha256\npodcast-mgr.intoto.jsonl",
+            "generate-release-notes": "true"
+          }
+        }
+      ]
+    }
+  }
+}
